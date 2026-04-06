@@ -1,0 +1,180 @@
+use polars::prelude::*;
+use chrono::{Utc, NaiveDateTime, TimeZone};
+use chrono_tz::Tz;
+use once_cell::sync::Lazy;
+use std::sync::RwLock;
+use pyo3::prelude::*;
+use pyo3_polars::PyDataFrame;
+use pyo3::types::{PyDateTime, PyDate, PyAny};
+
+static CURRENT_TZ: Lazy<RwLock<String>> = Lazy::new(|| RwLock::new("UTC".to_string()));
+
+#[pyfunction]
+pub fn py_set_backend_timezone(timezone_str: String) -> PyResult<()> {
+    let _: Tz = timezone_str.parse().map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("{}", e)))?;
+    let mut tz = CURRENT_TZ.write().unwrap();
+    *tz = timezone_str;
+    Ok(())
+}
+
+fn get_current_tz() -> Tz {
+    let tz_str = CURRENT_TZ.read().unwrap();
+    tz_str.parse().unwrap_or(chrono_tz::UTC)
+}
+
+#[pyfunction]
+pub fn py_ensure_timestamp(val: &Bound<'_, PyAny>) -> PyResult<Option<i64>> {
+    if val.is_none() {
+        return Ok(None);
+    }
+
+    if let Ok(dt) = val.downcast::<PyDateTime>() {
+        let ts = dt.call_method0("timestamp")?.extract::<f64>()?;
+        return Ok(Some(ts as i64));
+    }
+
+    if let Ok(_date) = val.downcast::<PyDate>() {
+        let ts = val.call_method0("timestamp").or_else(|_| {
+             let dt_module = val.py().import("datetime")?;
+             let dt = dt_module.call_method1("datetime", (val,))?;
+             dt.call_method0("timestamp")
+        })?.extract::<f64>()?;
+        return Ok(Some(ts as i64));
+    }
+
+    if let Ok(s) = val.extract::<String>() {
+        let tz = get_current_tz();
+        if let Ok(naive) = NaiveDateTime::parse_from_str(&s, "%Y-%m-%d %H:%M:%S") {
+            let dt = tz.from_local_datetime(&naive).single().unwrap_or_else(|| Utc.from_local_datetime(&naive).unwrap().with_timezone(&tz));
+            return Ok(Some(dt.timestamp()));
+        }
+        if let Ok(date) = chrono::NaiveDate::parse_from_str(&s, "%Y-%m-%d") {
+            let naive = date.and_hms_opt(0, 0, 0).unwrap();
+            let dt = tz.from_local_datetime(&naive).single().unwrap_or_else(|| Utc.from_local_datetime(&naive).unwrap().with_timezone(&tz));
+            return Ok(Some(dt.timestamp()));
+        }
+    }
+
+    if let Ok(ts) = val.extract::<i64>() {
+        return Ok(Some(ts));
+    }
+    if let Ok(ts) = val.extract::<f64>() {
+        return Ok(Some(ts as i64));
+    }
+
+    Ok(None)
+}
+
+#[pyfunction]
+pub fn py_process_polars_data(pydf: Bound<'_, PyAny>) -> PyResult<PyDataFrame> {
+    let pydf: PyDataFrame = pydf.extract()?;
+    let df = pydf.0;
+    let processed = process_polars_data(df).map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("{}", e)))?;
+    Ok(PyDataFrame(processed))
+}
+
+pub fn process_polars_data(df: DataFrame) -> PolarsResult<DataFrame> {
+    let tz_str = CURRENT_TZ.read().unwrap();
+    let tz: Option<Tz> = tz_str.parse().ok();
+    
+    // 1. Lowercase all column names
+    let mut df = df;
+    let old_names: Vec<String> = df.get_column_names().iter().map(|s| s.to_string()).collect();
+    let new_names: Vec<String> = old_names.iter().map(|s| s.to_lowercase()).collect();
+    for (old, new) in old_names.iter().zip(new_names.iter()) {
+        if old != new {
+            let _ = df.rename(old, new.into());
+        }
+    }
+
+    // 2. Alias 'date' to 'time' if necessary
+    let has_time = df.get_column_names().iter().any(|s| s.as_str() == "time");
+    let has_date = df.get_column_names().iter().any(|s| s.as_str() == "date");
+    if !has_time && has_date {
+        let _ = df.rename("date", "time".into());
+    }
+
+    // 3. Process time column
+    if let Some(time_idx) = df.get_column_names().iter().position(|s| s.as_str() == "time") {
+        let time_col = df.get_columns().get(time_idx).unwrap();
+        let dtype = time_col.dtype().clone();
+
+        let new_time_s = match &dtype {
+            DataType::Datetime(tu, tz_opt) => {
+                let ca = time_col.datetime()?;
+                let tu_multiplier = match tu {
+                    TimeUnit::Nanoseconds => 1_000_000_000,
+                    TimeUnit::Microseconds => 1_000_000,
+                    TimeUnit::Milliseconds => 1_000,
+                };
+                let vec: Vec<Option<i64>> = ca.into_iter().map(|opt_ts| {
+                    opt_ts.map(|ts| {
+                        if tz_opt.is_some() {
+                            ts / tu_multiplier
+                        } else {
+                            let secs = ts / tu_multiplier;
+                            let nsecs = ((ts % tu_multiplier) * (1_000_000_000 / tu_multiplier)) as u32;
+                            if let Some(naive) = chrono::DateTime::from_timestamp(secs, nsecs).map(|dt| dt.naive_utc()) {
+                                if let Some(tz_val) = &tz {
+                                    let dt = tz_val.from_local_datetime(&naive).single().unwrap_or_else(|| Utc.from_local_datetime(&naive).unwrap().with_timezone::<Tz>(tz_val));
+                                    dt.timestamp()
+                                } else {
+                                    naive.and_utc().timestamp()
+                                }
+                            } else {
+                                0
+                            }
+                        }
+                    })
+                }).collect();
+                PolarsResult::Ok(Series::new("time".into(), vec))
+            }
+            DataType::Date => {
+                let ca = time_col.date()?;
+                let vec: Vec<Option<i64>> = ca.into_iter().map(|opt_days| {
+                    opt_days.map(|days| {
+                        let secs = days as i64 * 86400;
+                        if let Some(naive) = chrono::DateTime::from_timestamp(secs, 0).map(|dt| dt.naive_utc()) {
+                            if let Some(tz_val) = &tz {
+                                let dt = tz_val.from_local_datetime(&naive).single().unwrap_or_else(|| Utc.from_local_datetime(&naive).unwrap().with_timezone::<Tz>(tz_val));
+                                dt.timestamp()
+                            } else {
+                                naive.and_utc().timestamp()
+                            }
+                        } else {
+                            0
+                        }
+                    })
+                }).collect();
+                PolarsResult::Ok(Series::new("time".into(), vec))
+            }
+            DataType::Int64 | DataType::Float64 => {
+                let f64_s = time_col.cast(&DataType::Float64)?;
+                let ca = f64_s.f64()?;
+                let first_val = ca.get(0).unwrap_or(0.0);
+                
+                let scale = if first_val > 1e15 {
+                    1_000_000_000.0
+                } else if first_val > 1e12 {
+                    1_000_000.0
+                } else if first_val > 1e10 {
+                    1_000.0
+                } else {
+                    1.0
+                };
+                
+                let vec: Vec<Option<i64>> = ca.into_iter().map(|opt_v| {
+                    opt_v.map(|v| (v / scale) as i64)
+                }).collect();
+                PolarsResult::Ok(Series::new("time".into(), vec))
+            }
+            _ => PolarsResult::Ok(time_col.as_series().unwrap().clone())
+        }?;
+
+        df.replace_column(time_idx, new_time_s)?;
+    }
+
+    // 4. Fill Nulls with 0
+    let df = df.fill_null(FillNullStrategy::Zero)?;
+    Ok(df)
+}
