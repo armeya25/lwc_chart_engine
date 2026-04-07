@@ -2,6 +2,20 @@
 
 All notable changes to the **LWC Chart Engine** will be documented in this file.
 
+## [0.3.0] - 2026-04-07
+
+### 🚀 Core Improvements / Features
+- **API Documentation Overhaul**: Completely rewrote `api.md` to provide full technical coverage.
+  - Replaced all generic `**kwargs` with explicit, named parameters and types.
+  - Added detailed documentation for `Chart` constructor, `Series.set_data`, and `SubChart` classes.
+  - Documented all drawing tools including Trends, Rays, Fibonacci, and Boxes with their specific visual options.
+
+### 🛠 Build & Workflow Optimizations
+- **Automated Multi-Platform CI/CD**: Implemented a GitHub Actions workflow to build highly-compressed Python wheels for Windows, Linux, and macOS.
+  - Integrated **UPX compression** into the automated build pipeline for lightweight distributions.
+  - Automated "commit-back" logic to synchronize built wheels directly into the repository's `wheels/` folder.
+- **Global Version Synchronization**: Synchronized version `0.3.0` across `pyproject.toml`, `Cargo.toml`, and build scripts.
+
 ## [0.2.9] - 2026-04-07
 
 ### 🎯 UI & API Enhancements
