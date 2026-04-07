@@ -36,7 +36,7 @@ def test_chart():
     print("✅ Data series set successfully. Window should be open.")
     
     # Keep the script alive for a bit
-    time.sleep(20)
+    #time.sleep(20)
 
 if __name__ == "__main__":
     test_chart()
