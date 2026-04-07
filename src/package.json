@@ -1,0 +1,14 @@
+{
+  "name": "tauri-app",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "tauri": "tauri",
+    "build:frontend": "esbuild src-frontend/js/core.js src-frontend/js/ui.js src-frontend/js/commands.js src-frontend/bandPlugin.js src-frontend/js/plugins/*.js --bundle --minify --outdir=src-frontend/dist/js && cp src-frontend/index.html src-frontend/dist/index.html && cp src-frontend/terminal.css src-frontend/dist/terminal.css && cp src-frontend/lightweight-charts.js src-frontend/dist/lightweight-charts.js"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "esbuild": "^0.25.0"
+  }
+}

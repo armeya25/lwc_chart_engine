@@ -1,0 +1,18 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "chart_engine"
+version = "0.2.0"
+description = "High-performance charting engine built with Rust and Tauri"
+requires-python = ">=3.8"
+dependencies = [
+    "polars>=0.46.0",
+]
+
+[tool.maturin]
+features = ["python-bridge"]
+manifest-path = "src/src-tauri/Cargo.toml"
+python-source = "src"
+module-name = "chart_engine.chart_engine_lib"

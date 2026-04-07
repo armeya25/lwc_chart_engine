@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Initializing...</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap"
+        rel="stylesheet">
+
+    <link rel="stylesheet" href="terminal.css?v=10">
+</head>
+
+<body>
+    <div id="loading">
+        <div class="loader-spinner"></div>
+        <div class="loading-text">Initializing Terminal</div>
+    </div>
+
+    <div id="trade-panel" class="hidden">
+        <div class="trade-header">Execution</div>
+        <div class="trade-controls">
+            <div class="input-row">
+                <label>QTY</label>
+                <input type="number" id="trade-qty" value="1" min="0.1" step="0.1">
+            </div>
+            <div class="input-row">
+                <label>TP</label>
+                <input type="number" id="trade-tp" placeholder="Price" step="0.01">
+            </div>
+            <div class="input-row">
+                <label>SL</label>
+                <input type="number" id="trade-sl" placeholder="Price" step="0.01">
+            </div>
+            <div class="trade-btns">
+                <button id="buy-btn" onclick="executeTrade('buy')">BUY</button>
+                <button id="sell-btn" onclick="executeTrade('sell')">SELL</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="legend" class="collapsed hidden">
+        <div id="legend-header" onclick="toggleLegend()">
+            <span>Legend</span>
+            <span class="toggle-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            </span>
+        </div>
+        <div id="legend-content"></div>
+    </div>
+
+    <div id="toolbar"></div>
+
+    <div id="status-indicator">
+        <span class="status-dot"></span> LIVE <span id="active-tf"
+            style="opacity:0.7; border-left:1px solid #666; padding-left:8px; display:none"></span>
+    </div>
+
+    <div id="scroll-to-now" onclick="scrollToRealTime()" title="Scroll to latest">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="13 17 18 12 13 7"></polyline>
+            <polyline points="6 17 11 12 6 7"></polyline>
+        </svg>
+    </div>
+
+    <div id="info-panel">
+        <div id="trend-info" class="collapsed hidden">
+            <div id="trend-header" onclick="toggleTrendInfo()">
+                <span>Trend</span>
+                <span class="toggle-icon">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                </span>
+            </div>
+            <div id="trend-content">
+                <!-- Dynamic rows are added here on the fly -->
+            </div>
+        </div>
+
+        <div id="positions-panel" class="hidden">
+            <div id="positions-header">
+                <span>Positions</span>
+            </div>
+            <div id="positions-content">
+                <table id="positions-table">
+                    <thead>
+                        <tr>
+                            <th>Side</th>
+                            <th>Qty</th>
+                            <th>Entry</th>
+                            <th>Price</th>
+                            <th>TP</th>
+                            <th>SL</th>
+                            <th>P&L</th>
+                        </tr>
+                    </thead>
+                    <tbody id="positions-body">
+                        <!-- Positions will appear here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="chart-container"></div>
+    <div id="toast-container"></div>
+
+    <div id="view-toolbar">
+        <!-- Scale Controls (Hidden by default) -->
+        <div id="scale-toolbar" class="hidden">
+            <button class="scale-btn active" onclick="setScaleMode('auto')" title="Auto Scale">A</button>
+            <button class="scale-btn" onclick="setScaleMode('log')" title="Logarithmic">L</button>
+            <button class="scale-btn" onclick="setScaleMode('pct')" title="Percent Mode">%</button>
+        </div>
+        
+        <div class="toolbar-separator"></div>
+
+        <button onclick="togglePanel('trade-panel')" data-tooltip="Execution">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+        </button>
+        <button onclick="togglePanel('legend')" data-tooltip="Legend">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        </button>
+        <button onclick="togglePanel('trend-info')" data-tooltip="Trend Info">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </button>
+        <button onclick="togglePanel('positions-panel')" data-tooltip="Positions">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+        </button>
+        <button onclick="toggleScaleControls()" data-tooltip="Scale Modes">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+        </button>
+    </div>
+
+    <!-- Scripts -->
+    <script src="lightweight-charts.js"></script>
+    <script src="js/plugins/markerManager.js"></script>
+    <script src="js/plugins/priceLineManager.js"></script>
+    <script src="js/plugins/boxManager.js"></script>
+    <script src="js/plugins/positionToolManager.js"></script>
+    <script src="js/plugins/lineToolManager.js"></script>
+    <script src="bandPlugin.js"></script>
+
+    <script src="js/core.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/commands.js"></script>
+</body>
+
+</html>
