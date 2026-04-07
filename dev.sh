@@ -22,7 +22,7 @@ maturin build --out wheels --features python-bridge > /tmp/maturin_build.log 2>&
 
 # Install the wheel quietly
 echo "📥 Installing wheel..."
-uv pip install wheels/chart_engine-0.2.9*.whl --force-reinstall --quiet
+uv pip install wheels/chart_engine-0.3.5*.whl --force-reinstall --quiet
 
 # 3. Build the standalone Tauri binary
 echo "📂 Compiling standalone binary..."

@@ -2,6 +2,14 @@
 
 All notable changes to the **LWC Chart Engine** will be documented in this file.
 
+## [0.3.5] - 2026-04-07
+
+### 🛠 Build & Workflow Optimizations
+- **CI/CD Platform Fixes**: Resolved linker errors on macOS and Windows by properly isolating the `python-bridge` feature from the standalone binary build.
+- **Improved Windows CI**: Rewrote the frontend build stage to execute directly via Bash, ensuring compatibility for Unix-style commands on Windows runners.
+- **Official GitHub Environment**: Migrated all automated actions to their latest versions (**v6**) with native Node.js 24 support.
+- **Enhanced Identification**: Automated wheel renaming to include OS suffixes (`-windows`, `-linux`, `-macos`) for easier distribution management.
+
 ## [0.3.0] - 2026-04-07
 
 ### 🚀 Core Improvements / Features

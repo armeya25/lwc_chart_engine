@@ -17,7 +17,7 @@ def test_chart():
     df = df.tail(100)
 
     # 2. Initialize and Show Chart
-    chart = Chart(title="Chart Engine v0.3.0 - SubChart Test")
+    chart = Chart(title="Chart Engine v0.3.5 - SubChart Test")
     #chart.show()  # Launch the Tauri window
     
     # 3. Configure Layout and Series
