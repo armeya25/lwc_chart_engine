@@ -7,7 +7,52 @@ from . import chart_engine_lib
 import time
 import threading
 import logging
-from .time_utils import (DateTimeEncoder, set_backend_timezone, process_polars_data)
+import datetime
+import zoneinfo
+
+# State for backend timezone (synced with Rust)
+_BACKEND_TZ = "UTC"
+
+def _set_backend_timezone(timezone_str: str):
+    global _BACKEND_TZ
+    _BACKEND_TZ = timezone_str
+    chart_engine_lib.py_set_backend_timezone(timezone_str)
+
+def _ensure_timestamp(val):
+    if val is None: return None
+    return chart_engine_lib.py_ensure_timestamp(val)
+
+# Monkey patch to_arrow to fix the PyO3-Polars bridge error in Polars 1.x
+_orig_df_to_arrow = pl.DataFrame.to_arrow
+def _patched_df_to_arrow(self, *args, **kwargs):
+    kwargs.pop("compat_level", None)
+    return _orig_df_to_arrow(self, *args, **kwargs)
+pl.DataFrame.to_arrow = _patched_df_to_arrow
+
+_orig_s_to_arrow = pl.Series.to_arrow
+def _patched_s_to_arrow(self, *args, **kwargs):
+    kwargs.pop("compat_level", None)
+    return _orig_s_to_arrow(self, *args, **kwargs)
+pl.Series.to_arrow = _patched_s_to_arrow
+
+def _process_polars_data(df: pl.DataFrame) -> pl.DataFrame:
+    """
+    Delegates all DataFrame pre-processing to the high-performance Rust backend.
+    Handles column sanitization, timestamp conversion, and timezone alignment.
+    """
+    if df is None: return None
+    return chart_engine_lib.py_process_polars_data(df)
+
+class DateTimeEncoder(json.JSONEncoder):
+    """Bridge for DateTimeEncoder."""
+    def default(self, obj):
+        ts = _ensure_timestamp(obj)
+        if ts is not None: return ts
+        # Fallback to default JSON encoder for other types
+        try:
+            return super().default(obj)
+        except TypeError:
+            return str(obj)
 
 logger = logging.getLogger("chart_engine")
 
@@ -29,12 +74,19 @@ class SubChart:
     def create_line_series(self, name="Line"): return self.chart.create_line_series(name, self.chart_id)
     def create_candlestick_series(self, name="Price"): return self.chart.create_candlestick_series(name, self.chart_id)
 
+class PriceLine:
+    def __init__(self, rust_line, chart):
+        self._rust_line, self.chart, self.line_id = rust_line, chart, rust_line.line_id
+    def update(self, price):
+        cmd = self._rust_line.update(price)
+        if cmd: self.chart._send_command(json.loads(cmd))
+
 class Series:
     def __init__(self, chart, series_id, name, chart_id="chart-0", rust_series=None):
         self.chart, self.series_id, self.name, self.chart_id, self._rust_series = chart, series_id, name, chart_id, rust_series
     def set_data(self, df):
         if self._rust_series:
-            df = process_polars_data(df)
+            df = _process_polars_data(df)
             data_json = json.dumps(df.to_dicts(), cls=DateTimeEncoder)
             cmd = json.loads(self._rust_series.set_data(data_json))
             cmd["chartId"] = self.chart_id
@@ -45,7 +97,7 @@ class Series:
             if isinstance(item, dict):
                 item = pl.DataFrame([item])
             
-            item = process_polars_data(item)
+            item = _process_polars_data(item)
             item_json = json.dumps(item.to_dicts()[0], cls=DateTimeEncoder)
             cmd = json.loads(self._rust_series.update(item_json))
             cmd["chartId"] = self.chart_id
@@ -65,8 +117,11 @@ class Chart:
         if getattr(self, '_initialized', False): return
         self.series, self._rust_chart = {}, chart_engine_lib.Chart()
         self.on_trade = None
-        from .drawings import DrawingTool
-        self.toolbox = DrawingTool(self, rust_toolbox=self._rust_chart.toolbox)
+        
+        # Merge DrawingTool logic directly into Chart
+        self.toolbox = self # For backward compatibility
+        self._rust_toolbox = self._rust_chart.toolbox
+
         rmain = self._rust_chart.series.get(main_series_id)
         self.series[main_series_id] = Series(self, main_series_id, "Main", rust_series=rmain)
 
@@ -81,11 +136,11 @@ class Chart:
             _READY_EVENT = True
             
             # Start background listener for UI events
-            threading.Thread(target=self._listen_to_ui, daemon=True).start()
+            threading.Thread(target=self.__listen_to_ui, daemon=True).start()
 
         self._initialized = True
 
-    def _listen_to_ui(self):
+    def __listen_to_ui(self):
         global _TAURI_PROCESS
         while _TAURI_PROCESS and _TAURI_PROCESS.poll() is None:
             line = _TAURI_PROCESS.stdout.readline()
@@ -140,7 +195,7 @@ class Chart:
         self._send_command({"action": "set_watermark", "chartId": chart_id, "data": {"text": text}})
     
     def set_timezone(self, tz): 
-        set_backend_timezone(tz)
+        _set_backend_timezone(tz)
         self._send_command({"action": "set_timezone", "data": {"timezone": tz}})
     
     def set_tooltip(self, v): 
@@ -170,6 +225,56 @@ class Chart:
     
     def take_screenshot(self, chart_id="chart-0"):
         self._send_command({"action": "take_screenshot", "chartId": chart_id})
+
+    # --- Drawing & Markers (from DrawingTool) ---
+
+    def sync_active_position(self, is_opened, **kwargs):
+        for c in self._rust_toolbox.sync_active_position(is_opened, **kwargs):
+            self._send_command(json.loads(c))
+
+    def add_marker(self, series_id, time, **kwargs):
+        mid, cmd = self._rust_toolbox.add_marker(series_id, _ensure_timestamp(time), kwargs.get('position', "aboveBar"), kwargs.get('color', "#2196F3"), kwargs.get('shape', "arrowDown"), kwargs.get('text', ""), kwargs.get('chart_id', "chart-0"))
+        self._send_command(json.loads(cmd))
+        return mid
+
+    def create_box(self, start_time, start_price, end_time, end_price, **kwargs):
+        st = _ensure_timestamp(start_time)
+        et = _ensure_timestamp(end_time)
+        bid, cmds = self._rust_toolbox.create_box(st, start_price, et, end_price, kwargs.get('color', "rgba(33, 150, 243, 0.2)"), kwargs.get('border_color', "#2196F3"), kwargs.get('text', ""), kwargs.get('category'), kwargs.get('chart_id', "chart-0"))
+        for c in cmds: self._send_command(json.loads(c))
+        return bid
+
+    def create_horizontal_line(self, series_id, price, **kwargs):
+        lid, cmd = self._rust_toolbox.create_horizontal_line(series_id, price, kwargs.get('color', "#F44336"), kwargs.get('chart_id', "chart-0"))
+        if cmd: self._send_command(json.loads(cmd))
+        return PriceLine(self._rust_toolbox.lines.get(lid), self)
+
+    def _create_line_tool(self, tool_type, start_time, start_price, end_time, end_price, **kwargs):
+        st = _ensure_timestamp(start_time)
+        et = _ensure_timestamp(end_time)
+        tid, cmd = self._rust_toolbox.create_line_tool(tool_type, st, start_price, et, end_price, kwargs.get('color', "#2196F3"), kwargs.get('width', 1), kwargs.get('style', 0), kwargs.get('visible', True), kwargs.get('text', ""), kwargs.get('extended', False), kwargs.get('chart_id', "chart-0"))
+        self._send_command(json.loads(cmd))
+        return tid
+
+    def create_trendline(self, st, sp, et, ep, **k): return self._create_line_tool("trendline", st, sp, et, ep, **k)
+    def create_ray(self, st, sp, et, ep, **k): k['extended'] = True; return self._create_line_tool("ray", st, sp, et, ep, **k)
+    def create_fib_retracement(self, st, sp, et, ep, **k): return self._create_line_tool("fib", st, sp, et, ep, **k)
+    def remove_line_tool(self, tid): self._send_command(json.loads(self._rust_toolbox.remove_line_tool(tid)))
+    def clear_line_tools(self): self._send_command(json.loads(self._rust_toolbox.clear_line_tools()))
+    def remove_box(self, bid): self._send_command(json.loads(self._rust_toolbox.remove_box(bid)))
+    def create_long_position(self, st, ep, sl, tp, **k):
+        pid, cmds = self._rust_toolbox.create_position(_ensure_timestamp(st), ep, sl, tp, _ensure_timestamp(k.get('end_time')), k.get('visible', True), "long", k.get('quantity', 1.0), k.get('chart_id', "chart-0"))
+        for c in cmds: self._send_command(json.loads(c))
+        return pid
+
+    def create_short_position(self, st, ep, sl, tp, **k):
+        pid, cmds = self._rust_toolbox.create_position(_ensure_timestamp(st), ep, sl, tp, _ensure_timestamp(k.get('end_time')), k.get('visible', True), "short", k.get('quantity', 1.0), k.get('chart_id', "chart-0"))
+        for c in cmds: self._send_command(json.loads(c))
+        return pid
+
+    def remove_position(self, pid): self._send_command(json.loads(self._rust_toolbox.remove_position(pid)))
+    def clear_positions(self, cid=None):
+        for c in self._rust_toolbox.clear_positions(cid): self._send_command(json.loads(c))
 
     def show(self):
         """API compatibility - Tauri window is singleton and launches on __init__"""
