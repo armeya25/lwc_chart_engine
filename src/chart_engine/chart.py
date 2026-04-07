@@ -226,6 +226,14 @@ class Chart:
     def enable_tooltip(self): self.set_tooltip(True)
     def disable_tooltip(self): self.set_tooltip(False)
     
+    def set_layout_toolbar_visibility(self, v):
+        """Show or hide the side toolbar containing layout settings"""
+        cmd = self._rust_chart.set_layout_toolbar_visibility(bool(v))
+        self._send_command(json.loads(cmd))
+
+    def enable_layout_toolbar(self): self.set_layout_toolbar_visibility(True)
+    def disable_layout_toolbar(self): self.set_layout_toolbar_visibility(False)
+    
     def set_trend_info_visibility(self, v): 
         self._send_command({"action": "set_trend_info_visibility", "data": {"visible": v}})
     

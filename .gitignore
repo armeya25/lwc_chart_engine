@@ -49,3 +49,7 @@ chart_engine/src-tauri/icons/128x128@2x.png
 logs/
 *.log
 
+# Compiled Engine Binaries
+src/chart_engine/chart_engine_lib.*
+src/chart_engine/chart_engine
+wheels/

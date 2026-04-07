@@ -83,15 +83,20 @@ pub struct Chart {
     pub trader: PaperTrader,
     pub layout: String,
     pub tooltip_enabled: bool,
+    pub layout_toolbar_enabled: bool,
 }
 
 impl Chart {
+    pub fn new() -> Self {
+        let mut series_map = HashMap::new();
+        series_map.insert("main".to_string(), Series::new("main".to_string(), "Main".to_string()));
         Self { 
             series: series_map, 
             toolbox: DrawingTool::new(), 
             trader: PaperTrader::new(),
             layout: "single".to_string(),
             tooltip_enabled: false,
+            layout_toolbar_enabled: false,
         }
     }
 
@@ -119,11 +124,17 @@ impl Chart {
         cmd.options = Some(json!({"name": name}));
         Ok((sid, serde_json::to_string(&cmd).unwrap()))
     }
-
     pub fn set_tooltip(&mut self, enabled: bool) -> Result<String, String> {
         self.tooltip_enabled = enabled;
         let mut cmd = ChartCommand::new("set_tooltip", "chart-0");
         cmd.data = Some(json!({"enabled": enabled}));
+        Ok(serde_json::to_string(&cmd).unwrap())
+    }
+
+    pub fn set_layout_toolbar_visibility(&mut self, visible: bool) -> Result<String, String> {
+        self.layout_toolbar_enabled = visible;
+        let mut cmd = ChartCommand::new("set_layout_toolbar_visibility", "chart-0");
+        cmd.data = Some(json!({"visible": visible}));
         Ok(serde_json::to_string(&cmd).unwrap())
     }
 }
@@ -169,5 +180,10 @@ impl Chart {
     #[pyo3(name = "set_tooltip")]
     pub fn py_set_tooltip(&mut self, enabled: bool) -> PyResult<String> {
         self.set_tooltip(enabled).map_err(|e| pyo3::exceptions::PyValueError::new_err(e))
+    }
+
+    #[pyo3(name = "set_layout_toolbar_visibility")]
+    pub fn py_set_layout_toolbar_visibility(&mut self, visible: bool) -> PyResult<String> {
+        self.set_layout_toolbar_visibility(visible).map_err(|e| pyo3::exceptions::PyValueError::new_err(e))
     }
 }

@@ -10,44 +10,6 @@ A high-performance charting engine built with **Rust**, **Tauri**, and **Lightwe
 
 ![Static Chart Example](screenshots/static.png)
 
-## 📦 Installation
-
-Install the production-ready wheel from the `wheels/` directory:
-
-```bash
-# 1. Install dependencies
-pip install -r requirements.txt
-
-# 2. Install the wheel
-pip install wheels/chart_engine-0.2.0-cp313-cp313-linux_x86_64.whl
-```
-
-## 🛠 Usage
-
-```python
-import polars as pl
-from chart_engine import Chart
-import time
-
-# 1. Initialize and Show Chart
-chart = Chart(title="Chart Engine - SubChart Test")
-chart.show()  # Launch the Tauri window
-
-# 2. Configure Layout and Series
-subcharts = chart.set_layout("single")
-series = subcharts[0].create_candlestick_series(name="BTC/USD")
-
-# 3. Load and Set Data (Polars DataFrame)
-# Assumes a parquet file exists at data/1d.parquet
-df = pl.read_parquet("data/1d.parquet").tail(100)
-series.set_data(df)
-
-print("✅ Data series set successfully. Window should be open.")
-
-# Keep the script alive to see the window
-#time.sleep(10) not needed
-```
-
 ## 🏗 Build Requirements
 
 To build the optimized package from source, ensure you have the following installed:
@@ -86,6 +48,46 @@ xcode-select --install
 ### 🪟 System Dependencies (Windows)
 1. **Visual Studio 2022**: Install the [C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/).
 2. **WebView2**: Most recent Windows versions include this by default. If not, install the [WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/).
+
+## 📦 Installation
+
+Install the production-ready wheel from the `wheels/` directory:
+
+```bash
+# 1. Install dependencies
+pip install -r requirements.txt
+
+# 2. Install the wheel
+pip install wheels/chart_engine-0.2.9-cp313-cp313-linux_x86_64.whl
+```
+
+## 🛠 Usage
+
+```python
+import polars as pl
+from chart_engine import Chart
+import time
+
+# 1. Initialize and Show Chart
+chart = Chart(title="Chart Engine - SubChart Test")
+chart.show()  # Launch the Tauri window
+
+# 2. Configure Layout and Series
+subcharts = chart.set_layout("single")
+series = subcharts[0].create_candlestick_series(name="BTC/USD")
+
+# 3. Load and Set Data (Polars DataFrame)
+# Assumes a parquet file exists at data/1d.parquet
+df = pl.read_parquet("data/1d.parquet").tail(100)
+series.set_data(df)
+
+print("✅ Data series set successfully. Window should be open.")
+
+# Keep the script alive to see the window
+#time.sleep(10) not needed
+```
+
+
 
 ## 🏗 Build Pipeline
 

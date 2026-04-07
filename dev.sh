@@ -11,13 +11,22 @@ fi
 
 echo "🚀 Starting fast development build..."
 
-# 2. Build and install the Python extension (Debug mode)
-# This is much faster than --release and uses --uv for your environment
-maturin develop --uv --features python-bridge
+# 1.5. Build minified frontend
+echo "📦 Building minified frontend..."
+(cd src && npm run build:frontend) > /dev/null 2>&1
 
-# 3. Build the standalone Tauri binary (Debug mode)
+# 2. Build and install the Python extension
+echo "📦 Building debug wheel..."
+# Redirect noise to dev null, but keep output on error
+maturin build --out wheels --features python-bridge > /tmp/maturin_build.log 2>&1 || { cat /tmp/maturin_build.log; exit 1; }
+
+# Install the wheel quietly
+echo "📥 Installing wheel..."
+uv pip install wheels/chart_engine-0.2.9*.whl --force-reinstall --quiet
+
+# 3. Build the standalone Tauri binary
 echo "📂 Compiling standalone binary..."
-cargo build --manifest-path src/src-tauri/Cargo.toml --features python-bridge
+cargo build --manifest-path src/src-tauri/Cargo.toml --features python-bridge > /tmp/cargo_build.log 2>&1 || { cat /tmp/cargo_build.log; exit 1; }
 
 # 4. Copy to the location expected by chart.py
 cp src/src-tauri/target/debug/chart_engine_lib src/chart_engine/chart_engine
