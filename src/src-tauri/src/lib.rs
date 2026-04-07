@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 #[path = "../../src-backend/chart.rs"] mod chart;
 #[path = "../../src-backend/drawings.rs"] mod drawings;
+#[path = "../../src-backend/trader.rs"] mod trader;
 #[path = "../../src-backend/types.rs"] mod types;
 #[path = "../../src-backend/time_utils.rs"] mod time_utils;
 
@@ -133,6 +134,8 @@ fn chart_engine_lib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<chart::Series>()?;
     m.add_class::<drawings::DrawingTool>()?;
     m.add_class::<drawings::PriceLine>()?;
+    m.add_class::<trader::PaperTrader>()?;
+    m.add_class::<trader::Position>()?;
     m.add_function(wrap_pyfunction!(run, m)?)?;
     m.add_function(wrap_pyfunction!(time_utils::py_set_backend_timezone, m)?)?;
     m.add_function(wrap_pyfunction!(time_utils::py_ensure_timestamp, m)?)?;

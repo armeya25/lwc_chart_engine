@@ -6,7 +6,7 @@ set -e
 # Change to the root directory
 cd "$(dirname "$0")"
 
-VERSION="0.2.0"
+VERSION="0.2.5"
 PACKAGE_NAME="chart_engine"
 SOURCE_DIR="src/chart_engine"
 
@@ -33,7 +33,8 @@ fi
 
 # Ensure core build dependencies are installed
 echo "📦 Ensuring build dependencies (maturin, polars) are up-to-date..."
-pip install --quiet --upgrade pip maturin polars || echo "⚠️ Could not update pip/maturin/polars automatically."
+# Use python3 -m pip instead of direct pip
+python3 -m pip install --quiet --upgrade pip maturin polars || echo "⚠️ Could not update pip/maturin/polars automatically."
 
 # 0. Cleanup old artifacts
 echo "🧹 Cleaning up old binaries and libraries..."
@@ -65,8 +66,7 @@ BPATH="src/src-tauri/target/release/chart_engine_lib"
 if [ -f "$BPATH" ]; then
     cp "$BPATH" "src/chart_engine/chart_engine"
     chmod +x "src/chart_engine/chart_engine"
-    echo "⚡ Compressing standalone binary (UPX)..."
-    ./upx --best --lzma src/chart_engine/chart_engine || echo "⚠️ UPX compression failed"
+    # Skip early packing; we'll do it once inside the wheel
     echo "✅ Standalone binary ready for packaging."
 else
     echo "❌ Error: Could not find built binary at $BPATH"
@@ -80,8 +80,6 @@ if [ ! -f "$LPATH" ]; then
 fi
 if [ -f "$LPATH" ]; then
     cp "$LPATH" "src/chart_engine/chart_engine_lib.so"
-    echo "⚡ Compressing shared library (UPX)..."
-    ./upx --best --lzma src/chart_engine/chart_engine_lib.so || echo "⚠️ UPX compression failed"
 fi
 
 # Build the wheel (.whl) for distribution
@@ -99,8 +97,9 @@ if [ -f "$WHEEL_FILE" ]; then
     unzip -q "$WHEEL_FILE" -d "$TMP_DIR"
     
     echo "⚡ High-compressing internal binaries (UPX)..."
-    find "$TMP_DIR" -name "*.so" -exec ./upx --best --lzma {} + || echo "⚠️ Internal UPX failed"
-    find "$TMP_DIR" -name "chart_engine" -exec ./upx --best --lzma {} + || echo "⚠️ Internal UPX failed"
+    # Use -type f to skip directories and --force just in case
+    find "$TMP_DIR" -type f -name "*.so" -exec ./upx --best --lzma --force {} + || echo "⚠️ Internal UPX failed for .so"
+    find "$TMP_DIR" -type f -name "chart_engine" -exec ./upx --best --lzma --force {} + || echo "⚠️ Internal UPX failed for binary"
     
     echo "✍ Updating RECORD file hashes and sizes..."
     # We need to update the SHA256 and size for all modified files in the RECORD file
@@ -136,10 +135,9 @@ if record_path:
     echo "✅ High compression complete."
 fi
 
-# Also install locally for testing
-#echo "🐍 Syncing local environment..."
-#maturin develop --release --features python-bridge
+# Final Cleanup: Remove staging binaries
+echo "🧹 Final cleanup of source directory..."
+rm -f src/chart_engine/chart_engine
+rm -f src/chart_engine/chart_engine_lib*.so
 
-
-echo "✨ Maturin develop complete! Package ${PACKAGE_NAME} is now installed in your environment."
-echo "You can verify with: python3 test_install.py"
+echo "✨ Build complete! Your highly-compressed wheel is in: wheels/"

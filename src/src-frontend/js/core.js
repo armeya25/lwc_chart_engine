@@ -7,7 +7,7 @@ window.charts = new Map();       // chartId -> chartInstance
 window.seriesMap = new Map();    // seriesId -> seriesInstance
 window.chartSeriesMap = new Map(); // chartId -> Set<seriesId>
 window.chartTimeZone = 'Asia/Kolkata';
-window.tooltipEnabled = true;
+window.tooltipEnabled = false;
 
 // Error Handling
 window.onerror = function (msg, url, line, col, error) {

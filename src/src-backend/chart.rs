@@ -3,6 +3,7 @@ use serde_json::{json, Value};
 #[cfg(feature = "python-bridge")]
 use pyo3::prelude::*;
 use crate::drawings::DrawingTool;
+use crate::trader::PaperTrader;
 use crate::types::ChartCommand;
 use uuid::Uuid;
 
@@ -79,14 +80,19 @@ impl Series {
 pub struct Chart {
     pub series: HashMap<String, Series>,
     pub toolbox: DrawingTool,
+    pub trader: PaperTrader,
     pub layout: String,
+    pub tooltip_enabled: bool,
 }
 
 impl Chart {
-    pub fn new() -> Self {
-        let mut series_map = HashMap::new();
-        series_map.insert("main".to_string(), Series::new("main".to_string(), "Main".to_string()));
-        Self { series: series_map, toolbox: DrawingTool::new(), layout: "single".to_string() }
+        Self { 
+            series: series_map, 
+            toolbox: DrawingTool::new(), 
+            trader: PaperTrader::new(),
+            layout: "single".to_string(),
+            tooltip_enabled: false,
+        }
     }
 
     pub fn set_layout(&mut self, layout: String) -> Result<String, String> {
@@ -113,6 +119,13 @@ impl Chart {
         cmd.options = Some(json!({"name": name}));
         Ok((sid, serde_json::to_string(&cmd).unwrap()))
     }
+
+    pub fn set_tooltip(&mut self, enabled: bool) -> Result<String, String> {
+        self.tooltip_enabled = enabled;
+        let mut cmd = ChartCommand::new("set_tooltip", "chart-0");
+        cmd.data = Some(json!({"enabled": enabled}));
+        Ok(serde_json::to_string(&cmd).unwrap())
+    }
 }
 
 #[cfg(feature = "python-bridge")]
@@ -126,6 +139,11 @@ impl Chart {
     #[getter]
     pub fn toolbox(&self) -> DrawingTool {
         self.toolbox.clone()
+    }
+
+    #[getter]
+    pub fn trader(&self) -> PaperTrader {
+        self.trader.clone()
     }
 
     #[new]
@@ -146,5 +164,10 @@ impl Chart {
     #[pyo3(name = "create_candlestick_series")]
     pub fn py_create_candlestick_series(&mut self, name: String, chart_id: String) -> PyResult<(String, String)> {
         self.create_candlestick_series(name, chart_id).map_err(|e| pyo3::exceptions::PyValueError::new_err(e))
+    }
+
+    #[pyo3(name = "set_tooltip")]
+    pub fn py_set_tooltip(&mut self, enabled: bool) -> PyResult<String> {
+        self.set_tooltip(enabled).map_err(|e| pyo3::exceptions::PyValueError::new_err(e))
     }
 }

@@ -9,6 +9,7 @@ import threading
 import logging
 import datetime
 import zoneinfo
+import atexit
 
 # State for backend timezone (synced with Rust)
 _BACKEND_TZ = "UTC"
@@ -121,12 +122,11 @@ class Chart:
         if getattr(self, '_initialized', False): return
         self.series, self._rust_chart = {}, chart_engine_lib.Chart()
         self.on_trade = None
-        self.positions = []
-        self.last_price = 0.0
         
         # Merge DrawingTool logic directly into Chart
         self.toolbox = self # For backward compatibility
         self._rust_toolbox = self._rust_chart.toolbox
+        self._rust_trader = self._rust_chart.trader
 
         rmain = self._rust_chart.series.get(main_series_id)
         self.series[main_series_id] = Series(self, main_series_id, "Main", rust_series=rmain)
@@ -148,6 +148,7 @@ class Chart:
         self.set_on_trade(self.trader_handle_callback)
 
         self._initialized = True
+        atexit.register(self.exit)
 
     def __listen_to_ui(self):
         global _TAURI_PROCESS
@@ -170,9 +171,19 @@ class Chart:
     def set_on_trade(self, callback):
         self.on_trade = callback
 
-    def update_positions(self, positions):
+    def update_positions(self, positions_data):
         """Update the active positions table in the UI"""
-        self._send_command({"action": "update_positions", "data": positions})
+        self._send_command({"action": "update_positions", "data": positions_data})
+
+    @property
+    def positions(self):
+        """Returns the current list of positions from the Rust trader"""
+        return self._rust_trader.positions
+
+    @property
+    def last_price(self):
+        """Returns the last market price from the Rust trader"""
+        return self._rust_trader.last_price
 
     def set_layout(self, layout="single"):
         l_str = str(layout).lower()
@@ -208,7 +219,12 @@ class Chart:
         self._send_command({"action": "set_timezone", "data": {"timezone": tz}})
     
     def set_tooltip(self, v): 
-        self._send_command({"action": "set_tooltip", "data": {"enabled": v}})
+        """Show or hide the floating tooltip on crosshair move (via Rust)"""
+        cmd = self._rust_chart.set_tooltip(bool(v))
+        self._send_command(json.loads(cmd))
+    
+    def enable_tooltip(self): self.set_tooltip(True)
+    def disable_tooltip(self): self.set_tooltip(False)
     
     def set_trend_info_visibility(self, v): 
         self._send_command({"action": "set_trend_info_visibility", "data": {"visible": v}})
@@ -291,64 +307,51 @@ class Chart:
     ########################################
     def trader_handle_callback(self, data):
         """Internal callback for trade events from the UI"""
-        side = data.get("side")
-        qty = data.get("qty", 1.0)
-        tp, sl = data.get("tp"), data.get("sl")
-        if not self.last_price: return
-        
-        print(f"TRADER: {side.upper()} {qty} @ {self.last_price} | TP: {tp or '-'} | SL: {sl or '-'}")
-        self.positions.append({
-            "side": side, "qty": qty, "entry": self.last_price,
-            "price": self.last_price, "tp": tp, "sl": sl, "pnl": 0.0
-        })
-        self.trader_sync()
+        cmds = self._rust_trader.handle_callback(json.dumps(data))
+        for c in cmds: self._send_command(json.loads(c))
 
     def trader_update_price(self, price):
-        """Update market price and check TP/SL for all positions"""
-        self.last_price = price
-        to_remove = []
-        for p in self.positions:
-            p["price"] = price
-            is_buy = p["side"] == "buy"
-            diff = (price - p["entry"]) if is_buy else (p["entry"] - price)
-            p["pnl"] = diff * p["qty"]
-            tp, sl = p.get("tp"), p.get("sl")
-            if tp and ((is_buy and price >= tp) or (not is_buy and price <= tp)):
-                self.show_notification(f"TP Hit! Closed {p['side']} at {price:.2f}", "success")
-                to_remove.append(p)
-            elif sl and ((is_buy and price <= sl) or (not is_buy and price >= sl)):
-                self.show_notification(f"SL Hit! Closed {p['side']} at {price:.2f}", "error")
-                to_remove.append(p)
-        for p in to_remove: self.positions.remove(p)
-        if self.positions or to_remove: self.trader_sync()
+        """Update market price and check TP/SL for all positions in Rust"""
+        cmds = self._rust_trader.update_price(price)
+        for c in cmds: self._send_command(json.loads(c))
 
-    def trader_sync(self):
-        """Sync local positions with the UI table"""
+    def __trader_sync(self):
+        """Sync local positions with the UI table (now handled in Rust)"""
+        # This is mostly for backward compatibility if called directly
         self.update_positions(self.positions)
 
     def trader_execute(self, side, qty, price=None, tp=None, sl=None, series=None):
-        """Programmatically execute a trade"""
-        price = price or self.last_price
-        if not price: return
-        print(f"TRADER (AUTO): {side.upper()} {qty} @ {price}")
-        self.positions.append({
-            "side": side, "qty": qty, "entry": price, "price": price,
-            "tp": tp, "sl": sl, "pnl": 0.0
-        })
+        """Programmatically execute a trade in the Rust backend"""
+        cmds = self._rust_trader.execute(side, qty, price, tp, sl)
+        for c in cmds: self._send_command(json.loads(c))
+        
         if series:
-            is_buy = side.lower() == 'buy'
-            series.add_marker(
-                position="belowBar" if is_buy else "aboveBar",
-                shape="arrowUp" if is_buy else "arrowDown",
-                color="#00e676" if is_buy else "#ff5252",
-                text=f"{side.upper()} @ {price:.2f}"
-            )
-        self.trader_sync()
+            exec_price = price or self.last_price
+            if exec_price:
+                is_buy = side.lower() == 'buy'
+                series.add_marker(
+                    position="belowBar" if is_buy else "aboveBar",
+                    shape="arrowUp" if is_buy else "arrowDown",
+                    color="#00e676" if is_buy else "#ff5252",
+                    text=f"{side.upper()} @ {exec_price:.2f}"
+                )
 
     def show_notification(self, message, type="info"):
         """Show a toast notification in the UI"""
         self._send_command({"action": "show_notification", "data": {"message": message, "type": type}})
 
+    def show(self, block=True):
+        """Keep the window open and block the Python script until it is closed."""
+        global _TAURI_PROCESS
+        if not _TAURI_PROCESS: return
+        
+        if block:
+            try:
+                # This will block until the child process (Tauri window) exits
+                _TAURI_PROCESS.wait()
+            except KeyboardInterrupt:
+                self.exit()
+    
     def _send_command(self, cmd):
         global _TAURI_PROCESS
         if _TAURI_PROCESS and _TAURI_PROCESS.poll() is None:
