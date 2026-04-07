@@ -12,8 +12,8 @@ fi
 echo "🚀 Starting fast development build..."
 
 # 2. Build and install the Python extension (Debug mode)
-# This is much faster than --release and installs directly into your venv
-maturin develop --features python-bridge
+# This is much faster than --release and uses --uv for your environment
+maturin develop --uv --features python-bridge
 
 # 3. Build the standalone Tauri binary (Debug mode)
 echo "📂 Compiling standalone binary..."

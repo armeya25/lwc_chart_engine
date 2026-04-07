@@ -8,6 +8,8 @@ A high-performance charting engine built with **Rust**, **Tauri**, and **Lightwe
 - **Embedded UI**: Minified frontend assets bundled directly into the distribution.
 - **Python Integration**: First-class support for **Polars DataFrames**.
 
+![Static Chart Example](screenshots/static.png)
+
 ## 📦 Installation
 
 Install the production-ready wheel from the `wheels/` directory:
