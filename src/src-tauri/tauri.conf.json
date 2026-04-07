@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.armeya.tauri-app",
   "build": {
-    "frontendDist": "../src-frontend"
+    "frontendDist": "../src-frontend/dist"
   },
   "app": {
     "withGlobalTauri": true,

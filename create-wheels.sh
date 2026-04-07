@@ -12,53 +12,133 @@ SOURCE_DIR="src/chart_engine"
 
 echo "🚀 Starting maturin-based development build for ${PACKAGE_NAME} v${VERSION}..."
 
+# 0. Virtual Environment Check
+if [ ! -d ".venv" ]; then
+    echo "🐍 .venv/ not found. Attempting to create a new virtual environment..."
+    if python3 -m venv .venv 2>/dev/null; then
+        echo "✅ .venv created successfully."
+    elif python3 -m venv --without-pip .venv 2>/dev/null; then
+        echo "✅ .venv created successfully (without pip fallback)."
+    else
+        echo "⚠️ .venv could not be created (python3-venv missing)."
+        rm -rf .venv
+        echo "💡 Continuing with your current environment."
+    fi
+fi
+
+if [ -f ".venv/bin/activate" ]; then
+    echo "🐍 Using virtual environment in .venv/"
+    source .venv/bin/activate
+fi
+
+# Ensure core build dependencies are installed
+echo "📦 Ensuring build dependencies (maturin, polars) are up-to-date..."
+pip install --quiet --upgrade pip maturin polars || echo "⚠️ Could not update pip/maturin/polars automatically."
+
 # 0. Cleanup old artifacts
 echo "🧹 Cleaning up old binaries and libraries..."
 rm -f src/chart_engine/chart_engine
 rm -f src/chart_engine/chart_engine_lib*.so
 rm -rf src/chart_engine/__pycache__
+rm -rf wheels
+mkdir -p wheels
 
 # 1. Install UI dependencies
-if [ ! -d "src/node_modules" ]; then
-    echo "📦 Node modules not found in src/. Installing UI dependencies..."
-    cd src && npm install && cd ..
-else
-    echo "✅ UI dependencies found in src/node_modules."
-fi
+# 1. Install UI dependencies
+echo "📦 Synchronizing UI dependencies..."
+cd src && npm install && cd ..
 
-# 2. Build via Maturin (Consolidated Build)
+# 2. Build minified frontend
+echo "📦 Building minified frontend..."
+cd src && npm run build:frontend && cd ..
+
+# 3. Build via Maturin (Consolidated Build)
 echo "🛠 Building optimized Python extension and standalone binary..."
 export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
 
-# maturin develop --release will build both the .so and the bin in release mode
-maturin develop --release --features python-bridge
+# First, ensure binaries are built so we can compress them before packaging
+echo "📂 Compiling and preparing binaries for packaging..."
+cargo build --release --manifest-path src/src-tauri/Cargo.toml --features python-bridge
 
-# 3. Prepare the binary and library for the Python package
-echo "📂 Synchronizing binary and library to package directory..."
+# Standalone binary
 BPATH="src/src-tauri/target/release/chart_engine_lib"
-
 if [ -f "$BPATH" ]; then
     cp "$BPATH" "src/chart_engine/chart_engine"
     chmod +x "src/chart_engine/chart_engine"
-    echo "✅ Standalone binary updated in src/chart_engine/chart_engine"
+    echo "⚡ Compressing standalone binary (UPX)..."
+    ./upx --best --lzma src/chart_engine/chart_engine || echo "⚠️ UPX compression failed"
+    echo "✅ Standalone binary ready for packaging."
 else
     echo "❌ Error: Could not find built binary at $BPATH"
     exit 1
 fi
 
-# Find the .so library
+# Shared library (Optional for packaging, but good for local)
 LPATH="src/src-tauri/target/release/libchart_engine_lib.so"
 if [ ! -f "$LPATH" ]; then
     LPATH=$(find src/src-tauri/target/release/deps -name "libchart_engine_lib.so" | head -n 1)
 fi
-
 if [ -f "$LPATH" ]; then
     cp "$LPATH" "src/chart_engine/chart_engine_lib.so"
-    echo "✅ Library updated in src/chart_engine/chart_engine_lib.so"
-else
-    echo "❌ Error: Could not find built library (.so)"
-    exit 1
+    echo "⚡ Compressing shared library (UPX)..."
+    ./upx --best --lzma src/chart_engine/chart_engine_lib.so || echo "⚠️ UPX compression failed"
 fi
+
+# Build the wheel (.whl) for distribution
+echo "📦 Generating production wheel (lightweight)..."
+mkdir -p wheels
+maturin build --release --features python-bridge --out wheels --manylinux off
+
+# High Compression Phase
+echo "🗜 Starting High Compression phase for the .whl..."
+WHEEL_FILE=$(ls wheels/*.whl | head -n 1)
+if [ -f "$WHEEL_FILE" ]; then
+    TMP_DIR=$(mktemp -d)
+    echo "📂 Unpacking wheel to $TMP_DIR..."
+    unzip -q "$WHEEL_FILE" -d "$TMP_DIR"
+    
+    echo "⚡ High-compressing internal binaries (UPX)..."
+    find "$TMP_DIR" -name "*.so" -exec ./upx --best --lzma {} + || echo "⚠️ Internal UPX failed"
+    find "$TMP_DIR" -name "chart_engine" -exec ./upx --best --lzma {} + || echo "⚠️ Internal UPX failed"
+    
+    echo "✍ Updating RECORD file hashes and sizes..."
+    # We need to update the SHA256 and size for all modified files in the RECORD file
+    # This is a bit complex in bash, so we'll use a python one-liner to fix the RECORD file
+    python3 -c "
+import os, hashlib, base64
+record_path = next(iter(path for path in [os.path.join(r, 'RECORD') for r, d, f in os.walk('$TMP_DIR')] if os.path.exists(path)), None)
+if record_path:
+    lines = []
+    with open(record_path, 'r') as f:
+        for line in f:
+            parts = line.strip().split(',')
+            if len(parts) >= 3:
+                rel_path = parts[0]
+                full_path = os.path.join('$TMP_DIR', rel_path)
+                if os.path.exists(full_path) and not rel_path.endswith('RECORD'):
+                    size = os.path.getsize(full_path)
+                    with open(full_path, 'rb') as bf:
+                        sha = base64.urlsafe_b64encode(hashlib.sha256(bf.read()).digest()).decode().rstrip('=')
+                    parts[1] = f'sha256={sha}'
+                    parts[2] = str(size)
+            lines.append(','.join(parts))
+    with open(record_path, 'w') as f:
+        f.write('\n'.join(lines) + '\n')
+"
+    
+    echo "📦 Repacking highly-compressed wheel..."
+    WHEEL_NAME=$(basename "$WHEEL_FILE")
+    WHEEL_OUT_DIR=$(realpath wheels)
+    cd "$TMP_DIR" && zip -q -9 -r "$WHEEL_OUT_DIR/$WHEEL_NAME.new" . && cd - > /dev/null
+    mv "$WHEEL_OUT_DIR/$WHEEL_NAME.new" "$WHEEL_FILE"
+    rm -rf "$TMP_DIR"
+    echo "✅ High compression complete."
+fi
+
+# Also install locally for testing
+#echo "🐍 Syncing local environment..."
+#maturin develop --release --features python-bridge
+
 
 echo "✨ Maturin develop complete! Package ${PACKAGE_NAME} is now installed in your environment."
 echo "You can verify with: python3 test_install.py"

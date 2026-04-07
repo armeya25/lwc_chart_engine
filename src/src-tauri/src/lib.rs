@@ -82,7 +82,6 @@ pub fn run() {
         .map(|()| log::set_max_level(log::LevelFilter::Debug));
     
     tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             log::debug!("Tauri setup started");
             let handle = app.handle().clone();

@@ -16,3 +16,7 @@ features = ["python-bridge"]
 manifest-path = "src/src-tauri/Cargo.toml"
 python-source = "src"
 module-name = "chart_engine.chart_engine_lib"
+include = [
+    "src/chart_engine/*.py",
+    "src/chart_engine/chart_engine"
+]
