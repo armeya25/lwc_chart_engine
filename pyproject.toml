@@ -18,5 +18,6 @@ python-source = "src"
 module-name = "chart_engine.chart_engine_lib"
 include = [
     "src/chart_engine/*.py",
-    "src/chart_engine/chart_engine"
+    "src/chart_engine/chart_engine",
+    "src/chart_engine/chart_engine_lib.cpython-313-x86_64-linux-gnu.so"
 ]

@@ -24,7 +24,7 @@ def test_chart():
 
     # 2. Initialize and Show Chart
     chart = Chart(title="Chart Engine v0.2.3 - SubChart Test")
-    chart.show()  # Launch the Tauri window
+    #chart.show()  # Launch the Tauri window
     
     # 3. Configure Layout and Series
     subcharts = chart.set_layout("single")

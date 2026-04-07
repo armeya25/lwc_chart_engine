@@ -264,8 +264,7 @@ const CommandHandlers = {
         window.charts.forEach(c => c.applyOptions({ localization, timeScale }));
     },
     set_timeframe: (_targetChart, cmd) => {
-        const el = document.getElementById('active-tf');
-        if (el) { el.textContent = cmd.data; el.style.display = 'inline'; }
+        // Timeframe display removed from status indicator
     },
     hide_loading: () => {
         if (window.hideLoader) window.hideLoader();

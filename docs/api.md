@@ -8,6 +8,7 @@ This document provides a technical reference for the `chart_engine` Python API, 
 3. [Series Class](#series-class)
 4. [Advanced Drawing Logic](#advanced-drawing-logic)
 5. [Trade Synchronization](#trade-synchronization)
+6. [Paper Trading Methods](#paper-trading-methods)
 
 ---
 
@@ -48,6 +49,25 @@ Synchronizes crosshairs, scrolling, and zooming across all subcharts in a multi-
 
 ---
 
+## Paper Trading Methods
+These methods are built-in to the `Chart` class and allow for real-time simulated trading.
+
+#### `trader_execute(side: str, qty: float, price: float = None, tp: float = None, sl: float = None, series: Series = None)`
+Programmatically executes a trade.
+- `side`: `"buy"` or `"sell"`.
+- `series`: If provided, also places a visual marker on the chart at the trade price.
+
+#### `trader_update_price(price: float)`
+Updates the last known market price. Automatically calculates P&L for all open positions and checks if any Take Profit (TP) or Stop Loss (SL) levels have been hit.
+
+#### `trader_sync()`
+Synchronizes the current internal list of positions with the UI's position table.
+
+#### `trader_handle_callback(data: dict)`
+Internal callback for trade events triggered from the UI (e.g., via the Buy/Sell buttons).
+
+---
+
 ## Series Class
 
 ### `update(item: dict | polars.DataFrame | polars.Series)`
@@ -60,6 +80,9 @@ Appends new data to the series.
 Supports Lightweight Charts (LWC) series options.
 - **Line Series**: `color`, `lineWidth`, `lineStyle`, `lineType`.
 - **Candlestick**: `upColor`, `downColor`, `borderVisible`, `wickVisible`.
+
+### `add_marker(**kwargs)`
+Convenience method for adding a marker to this specific series. Automatically passes the `series_id` to the chart. (See [Markers](#markers) for available arguments).
 
 ---
 
@@ -100,4 +123,6 @@ A specialized method for keeping the UI in sync with an external trade state (e.
 **Logic**:
 - Informs the engine to render or clear the position tool.
 - Automatically handles the conversion of `"buy"`/`"sell"` to `"long"`/`"short"`.
+- Prevents redundant commands if the state hasn't changed.
+
 - Prevents redundant commands if the state hasn't changed.

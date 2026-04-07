@@ -105,6 +105,10 @@ class Series:
     def apply_options(self, options):
         if self._rust_series: self.chart._send_command(json.loads(self._rust_series.apply_options(json.dumps(options))))
 
+    def add_marker(self, **kwargs):
+        """Convenience method for adding a marker to this specific series."""
+        return self.chart.add_marker(self.series_id, kwargs.get('time'), **kwargs)
+
 class Chart:
     _instance = None
     def __new__(cls, *args, **kwargs):
@@ -117,6 +121,8 @@ class Chart:
         if getattr(self, '_initialized', False): return
         self.series, self._rust_chart = {}, chart_engine_lib.Chart()
         self.on_trade = None
+        self.positions = []
+        self.last_price = 0.0
         
         # Merge DrawingTool logic directly into Chart
         self.toolbox = self # For backward compatibility
@@ -137,6 +143,9 @@ class Chart:
             
             # Start background listener for UI events
             threading.Thread(target=self.__listen_to_ui, daemon=True).start()
+
+        # Auto-bind trading handler for unified API
+        self.set_on_trade(self.trader_handle_callback)
 
         self._initialized = True
 
@@ -225,9 +234,10 @@ class Chart:
     
     def take_screenshot(self, chart_id="chart-0"):
         self._send_command({"action": "take_screenshot", "chartId": chart_id})
-
-    # --- Drawing & Markers (from DrawingTool) ---
-
+    
+    ################################################
+    # --- Drawing & Markers (from DrawingTool) --- #
+    ################################################
     def sync_active_position(self, is_opened, **kwargs):
         for c in self._rust_toolbox.sync_active_position(is_opened, **kwargs):
             self._send_command(json.loads(c))
@@ -275,10 +285,69 @@ class Chart:
     def remove_position(self, pid): self._send_command(json.loads(self._rust_toolbox.remove_position(pid)))
     def clear_positions(self, cid=None):
         for c in self._rust_toolbox.clear_positions(cid): self._send_command(json.loads(c))
+    
+    ########################################
+    # --- Paper Trading Logic (Merged) --- #
+    ########################################
+    def trader_handle_callback(self, data):
+        """Internal callback for trade events from the UI"""
+        side = data.get("side")
+        qty = data.get("qty", 1.0)
+        tp, sl = data.get("tp"), data.get("sl")
+        if not self.last_price: return
+        
+        print(f"TRADER: {side.upper()} {qty} @ {self.last_price} | TP: {tp or '-'} | SL: {sl or '-'}")
+        self.positions.append({
+            "side": side, "qty": qty, "entry": self.last_price,
+            "price": self.last_price, "tp": tp, "sl": sl, "pnl": 0.0
+        })
+        self.trader_sync()
 
-    def show(self):
-        """API compatibility - Tauri window is singleton and launches on __init__"""
-        pass
+    def trader_update_price(self, price):
+        """Update market price and check TP/SL for all positions"""
+        self.last_price = price
+        to_remove = []
+        for p in self.positions:
+            p["price"] = price
+            is_buy = p["side"] == "buy"
+            diff = (price - p["entry"]) if is_buy else (p["entry"] - price)
+            p["pnl"] = diff * p["qty"]
+            tp, sl = p.get("tp"), p.get("sl")
+            if tp and ((is_buy and price >= tp) or (not is_buy and price <= tp)):
+                self.show_notification(f"TP Hit! Closed {p['side']} at {price:.2f}", "success")
+                to_remove.append(p)
+            elif sl and ((is_buy and price <= sl) or (not is_buy and price >= sl)):
+                self.show_notification(f"SL Hit! Closed {p['side']} at {price:.2f}", "error")
+                to_remove.append(p)
+        for p in to_remove: self.positions.remove(p)
+        if self.positions or to_remove: self.trader_sync()
+
+    def trader_sync(self):
+        """Sync local positions with the UI table"""
+        self.update_positions(self.positions)
+
+    def trader_execute(self, side, qty, price=None, tp=None, sl=None, series=None):
+        """Programmatically execute a trade"""
+        price = price or self.last_price
+        if not price: return
+        print(f"TRADER (AUTO): {side.upper()} {qty} @ {price}")
+        self.positions.append({
+            "side": side, "qty": qty, "entry": price, "price": price,
+            "tp": tp, "sl": sl, "pnl": 0.0
+        })
+        if series:
+            is_buy = side.lower() == 'buy'
+            series.add_marker(
+                position="belowBar" if is_buy else "aboveBar",
+                shape="arrowUp" if is_buy else "arrowDown",
+                color="#00e676" if is_buy else "#ff5252",
+                text=f"{side.upper()} @ {price:.2f}"
+            )
+        self.trader_sync()
+
+    def show_notification(self, message, type="info"):
+        """Show a toast notification in the UI"""
+        self._send_command({"action": "show_notification", "data": {"message": message, "type": type}})
 
     def _send_command(self, cmd):
         global _TAURI_PROCESS
@@ -294,3 +363,5 @@ class Chart:
         if _TAURI_PROCESS:
             _TAURI_PROCESS.terminate()
             _TAURI_PROCESS = None
+
+

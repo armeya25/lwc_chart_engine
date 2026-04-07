@@ -87,6 +87,7 @@ fi
 # Build the wheel (.whl) for distribution
 echo "📦 Generating production wheel (lightweight)..."
 mkdir -p wheels
+rm -f src/chart_engine/chart_engine_lib.so # Never include manually copied libs in the wheel
 maturin build --release --features python-bridge --out wheels --manylinux off
 
 # High Compression Phase
