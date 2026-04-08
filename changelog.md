@@ -2,7 +2,7 @@
 
 All notable changes to the **LWC Chart Engine** will be documented in this file.
 
-## [0.3.6] - 2026-04-08
+## [0.3.7] - 2026-04-08
 
 ### 🛠 Build & Workflow Optimizations
 - **CI/CD Validation Fix**: Resolved the "Value 'pypi' is not valid" GitHub Actions error by removing mismatched `environment` configuration.
