@@ -79,10 +79,10 @@ jobs:
         run: |
           mkdir -p src/chart_engine
           if [ "${{ runner.os }}" == "Windows" ]; then
-            cp src/src-tauri/target/release/chart_engine_lib.exe src/chart_engine/chart_engine.exe
+            cp src/src-tauri/target/release/chart_engine.exe src/chart_engine/chart_engine.exe
             upx --best --lzma src/chart_engine/chart_engine.exe || true
           else
-            cp src/src-tauri/target/release/chart_engine_lib src/chart_engine/chart_engine
+            cp src/src-tauri/target/release/chart_engine src/chart_engine/chart_engine
             upx --best --lzma src/chart_engine/chart_engine || true
           fi
 
@@ -97,7 +97,7 @@ jobs:
           if [ -n "$WHEEL_FILE" ]; then
             echo "📦 Unpacking $WHEEL_FILE for high compression..."
             mkdir tmp_wheel
-            unzip -q "$WHEEL_FILE" -d tmp_wheel
+            python -m zipfile -e "$WHEEL_FILE" tmp_wheel
             
             # Find and compress shared libraries
             find tmp_wheel -type f \( -name "*.so" -o -name "*.pyd" \) -exec upx --best --lzma {} + || true
@@ -124,20 +124,13 @@ jobs:
               with open(record_path, 'w') as f:
                   f.write('\n'.join(lines) + '\n')
           "
-            # Repackage the wheel
-            WHEEL_NAME=$(basename "$WHEEL_FILE")
-            cd tmp_wheel && zip -q -9 -r "../$WHEEL_FILE" . && cd ..
+            python -c "import zipfile, os; zf = zipfile.ZipFile('$WHEEL_FILE.new', 'w', zipfile.ZIP_DEFLATED, compresslevel=9); [zf.write(os.path.join(r, f), os.path.relpath(os.path.join(r, f), 'tmp_wheel')) for r, d, files in os.walk('tmp_wheel') for f in files]; zf.close()"
+            mv "$WHEEL_FILE.new" "$WHEEL_FILE"
             rm -rf tmp_wheel
-
-            # Rename with OS suffix
-            OS_SUFFIX=$(echo "${{ runner.os }}" | tr '[:upper:]' '[:lower:]')
-            NEW_WHEEL_NAME="${WHEEL_NAME%.whl}-${OS_SUFFIX}.whl"
-            mv "dist/$WHEEL_NAME" "dist/$NEW_WHEEL_NAME"
-            echo "✅ Renamed $WHEEL_NAME to $NEW_WHEEL_NAME"
           fi
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: wheels-${{ matrix.os }}
           path: dist/*.whl
@@ -152,7 +145,7 @@ jobs:
           fetch-depth: 0
 
       - name: Download all wheels
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           path: wheels
           pattern: wheels-*

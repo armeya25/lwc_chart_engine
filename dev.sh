@@ -29,7 +29,7 @@ echo "📂 Compiling standalone binary..."
 cargo build --manifest-path src/src-tauri/Cargo.toml --features python-bridge > /tmp/cargo_build.log 2>&1 || { cat /tmp/cargo_build.log; exit 1; }
 
 # 4. Copy to the location expected by chart.py
-cp src/src-tauri/target/debug/chart_engine_lib src/chart_engine/chart_engine
+cp src/src-tauri/target/debug/chart_engine src/chart_engine/chart_engine
 chmod +x src/chart_engine/chart_engine
 
 echo "✅ Dev build complete! You can now run your scripts."

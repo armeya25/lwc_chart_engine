@@ -62,7 +62,7 @@ echo "📂 Compiling and preparing binaries for packaging..."
 cargo build --release --manifest-path src/src-tauri/Cargo.toml --features python-bridge
 
 # Standalone binary
-BPATH="src/src-tauri/target/release/chart_engine_lib"
+BPATH="src/src-tauri/target/release/chart_engine"
 if [ -f "$BPATH" ]; then
     cp "$BPATH" "src/chart_engine/chart_engine"
     chmod +x "src/chart_engine/chart_engine"
@@ -94,7 +94,7 @@ WHEEL_FILE=$(ls wheels/*.whl | head -n 1)
 if [ -f "$WHEEL_FILE" ]; then
     TMP_DIR=$(mktemp -d)
     echo "📂 Unpacking wheel to $TMP_DIR..."
-    unzip -q "$WHEEL_FILE" -d "$TMP_DIR"
+    python3 -m zipfile -e "$WHEEL_FILE" "$TMP_DIR"
     
     echo "⚡ High-compressing internal binaries (UPX)..."
     # Use -type f to skip directories and --force just in case
@@ -129,7 +129,13 @@ if record_path:
     echo "📦 Repacking highly-compressed wheel..."
     WHEEL_NAME=$(basename "$WHEEL_FILE")
     WHEEL_OUT_DIR=$(realpath wheels)
-    cd "$TMP_DIR" && zip -q -9 -r "$WHEEL_OUT_DIR/$WHEEL_NAME.new" . && cd - > /dev/null
+    python3 -c "import zipfile, os;
+with zipfile.ZipFile('$WHEEL_OUT_DIR/$WHEEL_NAME.new', 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
+    for root, dirs, files in os.walk('$TMP_DIR'):
+        for file in files:
+            full_path = os.path.join(root, file)
+            rel_path = os.path.relpath(full_path, '$TMP_DIR')
+            zf.write(full_path, rel_path)"
     mv "$WHEEL_OUT_DIR/$WHEEL_NAME.new" "$WHEEL_FILE"
     rm -rf "$TMP_DIR"
     echo "✅ High compression complete."
