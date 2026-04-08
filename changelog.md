@@ -2,6 +2,13 @@
 
 All notable changes to the **LWC Chart Engine** will be documented in this file.
 
+## [0.3.6] - 2026-04-08
+
+### 🛠 Build & Workflow Optimizations
+- **CI Reliability Fixes**:
+  - Resolved illegal character errors in the `Get Version` CI step by fixing incorrect backslash escaping in the GitHub Actions YAML workflow.
+  - Finalized cross-platform Python-based packaging for robust wheel generation across all platforms (Windows, Linux, macOS).
+
 ## [0.3.5] - 2026-04-08
 
 ### 🛠 Build & Workflow Optimizations

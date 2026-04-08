@@ -155,14 +155,14 @@ jobs:
         id: get_version
         shell: bash
         run: |
-          VERSION=$(grep -m 1 "^version =" pyproject.toml | cut -d '\"' -f 2)
-          echo \"VERSION=$VERSION\" >> $GITHUB_OUTPUT
+          VERSION=$(grep -m 1 "^version =" pyproject.toml | cut -d '"' -f 2)
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Commit and Push
         run: |
-          git config --global user.name \"github-actions[bot]\"
-          git config --global user.email \"github-actions[bot]@users.noreply.github.com\"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           mkdir -p wheels
           git add wheels/*.whl
-          git commit -m \"🚀 build: automated wheel generation for v${{ steps.get_version.outputs.VERSION }} *maintained by amit vaidya*\" || echo \"No changes to commit\"
+          git commit -m "🚀 build: automated wheel generation for v${{ steps.get_version.outputs.VERSION }} *maintained by amit vaidya*" || echo "No changes to commit"
           git push
