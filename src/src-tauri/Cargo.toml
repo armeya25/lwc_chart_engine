@@ -1,6 +1,6 @@
 [package]
 name = "chart_engine_lib"
-version = "0.3.10"
+version = "0.3.11"
 description = "tauri chart window"
 authors = ["amit vaidya"]
 edition = "2021"

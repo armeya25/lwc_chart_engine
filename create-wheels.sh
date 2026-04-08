@@ -6,7 +6,7 @@ set -e
 # Change to the root directory
 cd "$(dirname "$0")"
 
-VERSION="0.3.10"
+VERSION="0.3.11"
 PACKAGE_NAME="chart_engine"
 SOURCE_DIR="src/chart_engine"
 
@@ -37,12 +37,12 @@ echo "📦 Ensuring build dependencies (maturin, polars) are up-to-date..."
 python3 -m pip install --quiet --upgrade pip maturin polars || echo "⚠️ Could not update pip/maturin/polars automatically."
 
 # 0. Cleanup old artifacts
-echo "🧹 Cleaning up old binaries and libraries..."
+echo "🧹 Clearing previous build artifacts..."
+rm -rf wheels
+mkdir -p wheels
 rm -f src/chart_engine/chart_engine
 rm -f src/chart_engine/chart_engine_lib*.so
 rm -rf src/chart_engine/__pycache__
-rm -rf wheels
-mkdir -p wheels
 
 # 1. Install UI dependencies
 # 1. Install UI dependencies
@@ -86,7 +86,7 @@ fi
 echo "📦 Generating production wheel (lightweight)..."
 mkdir -p wheels
 rm -f src/chart_engine/chart_engine_lib.so # Never include manually copied libs in the wheel
-maturin build --release --features python-bridge --out wheels --manylinux off
+maturin build --release --features python-bridge --out wheels --compatibility linux
 
 # High Compression Phase
 echo "🗜 Starting High Compression phase for the .whl..."
