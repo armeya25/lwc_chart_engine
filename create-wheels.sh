@@ -6,7 +6,7 @@ set -e
 # Change to the root directory
 cd "$(dirname "$0")"
 
-VERSION="0.3.7"
+VERSION="0.3.8"
 PACKAGE_NAME="chart_engine"
 SOURCE_DIR="src/chart_engine"
 
@@ -96,6 +96,10 @@ if [ -f "$WHEEL_FILE" ]; then
     echo "📂 Unpacking wheel to $TMP_DIR..."
     python3 -m zipfile -e "$WHEEL_FILE" "$TMP_DIR"
     
+    echo "📂 Restoring executable permissions before compression..."
+    find "$TMP_DIR" -type f -name "*.so" -exec chmod +x {} +
+    find "$TMP_DIR" -type f -name "chart_engine" -exec chmod +x {} +
+
     echo "⚡ High-compressing internal binaries (UPX)..."
     # Use -type f to skip directories and --force just in case
     find "$TMP_DIR" -type f -name "*.so" -exec ./upx --best --lzma --force {} + || echo "⚠️ Internal UPX failed for .so"
@@ -135,7 +139,13 @@ with zipfile.ZipFile('$WHEEL_OUT_DIR/$WHEEL_NAME.new', 'w', zipfile.ZIP_DEFLATED
         for file in files:
             full_path = os.path.join(root, file)
             rel_path = os.path.relpath(full_path, '$TMP_DIR')
-            zf.write(full_path, rel_path)"
+            # Preserve file permissions (external_attr)
+            st = os.stat(full_path)
+            zinfo = zipfile.ZipInfo.from_file(full_path, rel_path)
+            zinfo.external_attr = (st.st_mode & 0xFFFF) << 16
+            with open(full_path, 'rb') as f:
+                zf.writestr(zinfo, f.read(), compress_type=zipfile.ZIP_DEFLATED)
+"
     mv "$WHEEL_OUT_DIR/$WHEEL_NAME.new" "$WHEEL_FILE"
     rm -rf "$TMP_DIR"
     echo "✅ High compression complete."

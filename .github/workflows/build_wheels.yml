@@ -199,30 +199,3 @@ jobs:
           packages-dir: dist/
           skip-existing: true
           verbose: true
-
-  publish_test_pypi:
-    name: Publish to Test PyPI
-    needs: build_wheels
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - name: Download all wheels
-        uses: actions/download-artifact@v4
-        with:
-          path: dist
-          pattern: wheels-*
-          merge-multiple: true
-
-      - name: Display structure of downloaded files
-        run: ls -R dist
-
-      - name: Publish to Test PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          repository-url: https://test.pypi.org/legacy/
-          packages-dir: dist/
-          skip-existing: true
-          verbose: true
