@@ -2,7 +2,7 @@
 
 # 🚀 Push and synchronize with GitHub
 # This script ensures your local branch is up-to-date and pushes both code and version tags.
-VERSION="0.3.10"
+VERSION="0.3.11"
 
 # 🔄 Synchronization & Rebase
 echo "📦 Checking for unstaged changes..."

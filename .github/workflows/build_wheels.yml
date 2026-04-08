@@ -149,6 +149,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Clear Old Wheels
+        run: |
+          rm -rf wheels/*.whl
+          mkdir -p wheels
+
       - name: Download all wheels
         uses: actions/download-artifact@v4
         with:
