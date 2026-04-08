@@ -2,6 +2,24 @@
 
 All notable changes to the **LWC Chart Engine** will be documented in this file.
 
+## [0.3.10] - 2026-04-08
+
+### 🛠 Build & Workflow Optimizations
+- **Summary**: Integrated Master Sync Script into Project Maintenance.
+- **Details**: Established `zz_upload_git.sh` as the official single source of truth for project versioning in the `changelog_maintenance` documentation.
+
+## [0.3.9] - 2026-04-08
+
+### 🚀 Core Improvements / Features
+- **Summary**: Implemented "Master Sync Engine" Script.
+- **Details**: Created `zz_upload_git.sh` to centralize absolute version control and repository synchronization, including automated git stashing/rebasing.
+
+### 🛠 Build & Workflow Optimizations
+- **Summary**: Optimized GitHub Actions Triggers.
+- **Details**: Eliminated redundant workflow runs by restricting CI/CD building to version tags only.
+- **Summary**: Enhanced Workflow Robustness.
+- **Details**: Added `git pull --rebase` to the automated wheel commit step in GHA to prevent "non-fast-forward" push rejections.
+
 ## [0.3.8] - 2026-04-08
 
 ### 🛠 Build & Workflow Optimizations

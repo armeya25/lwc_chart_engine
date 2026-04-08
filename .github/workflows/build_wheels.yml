@@ -179,9 +179,6 @@ jobs:
     needs: build_wheels
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/p/chart_engine
     permissions:
       id-token: write
       contents: read

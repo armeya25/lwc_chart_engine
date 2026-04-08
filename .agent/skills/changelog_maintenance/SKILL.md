@@ -5,7 +5,7 @@ Use this skill to automatically update the `changelog.md` file after significant
 ## 📋 Instructions
 
 1.  **Identify and Synchronize Version**: 
-    - Check the `VERSION` variable in `create-wheels.sh`.
+    - Check the `VERSION` variable in `zz_upload_git.sh`.
     - **Crucial**: Ensure this version matches exactly in:
       - `pyproject.toml` (`version = "..."`)
       - `src/src-tauri/Cargo.toml` (`version = "..."`)
