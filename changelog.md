@@ -5,9 +5,12 @@ All notable changes to the **LWC Chart Engine** will be documented in this file.
 ## [0.3.6] - 2026-04-08
 
 ### 🛠 Build & Workflow Optimizations
+- **PyPI Trusted Publishing (OIDC)**: Migrated from manual API tokens to modern, secure OIDC authentication (Trusted Publishing).
+- **GitHub Actions Upgrades**: Upgraded core workflow actions to their latest versions (`upload-artifact@v7`, `download-artifact@v8`) to maintain consistency and Node.js 24 compatibility.
 - **CI Reliability Fixes**:
   - Resolved illegal character errors in the `Get Version` CI step by fixing incorrect backslash escaping in the GitHub Actions YAML workflow.
   - Finalized cross-platform Python-based packaging for robust wheel generation across all platforms (Windows, Linux, macOS).
+- **Security & Linter Resolution**: Removed the explicit `PYPI_API_TOKEN` secret requirement, eliminating "invalid context" warnings in VS Code and improving repository security.
 
 ## [0.3.5] - 2026-04-08
 

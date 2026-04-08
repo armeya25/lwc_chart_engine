@@ -6,10 +6,25 @@ build-backend = "maturin"
 name = "chart_engine"
 version = "0.3.6"
 description = "High-performance charting engine built with Rust and Tauri"
+authors = [
+    { name = "Amit Vaidya" },
+]
+readme = "README.md"
+license = { text = "MIT" }
 requires-python = ">=3.8"
+keywords = ["charting", "rust", "tauri", "polars", "lightweight-charts"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
 dependencies = [
     "polars>=0.46.0",
 ]
+
+[project.urls]
+Repository = "https://github.com/armeya25/lwc_chart_engine"
+Homepage = "https://github.com/armeya25/lwc_chart_engine"
 
 [tool.maturin]
 features = ["python-bridge"]

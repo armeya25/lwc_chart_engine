@@ -72,6 +72,9 @@ Show or hide the floating tooltip that follows the crosshair. Use `enable_toolti
 #### `set_layout_toolbar_visibility(visible: bool)`
 Show or hide the side toolbar containing layout settings. Use `enable_layout_toolbar()` or `disable_layout_toolbar()` for convenience.
 
+#### `show_notification(message: str, type: str = "info")`
+Displays a toast notification in the UI. Types: `"info"`, `"success"`, `"warning"`, `"error"`.
+
 #### `set_trend_info_visibility(visible: bool)`
 Show or hide the trend information overlay.
 
@@ -136,6 +139,19 @@ Internal callback for trade events triggered from the UI (e.g., via the Buy/Sell
 
 ---
 
+## Utility Methods
+
+#### `show_notification(message: str, type: str = "info")`
+Displays a toast notification in the UI. Types: `"info"`, `"success"`, `"warning"`, `"error"`.
+
+#### `show(block: bool = True)`
+Starts the UI event loop. If `block=True`, the Python script will wait until the window is closed.
+
+#### `exit()`
+Terminates the backend process and closes the chart window.
+
+---
+
 ## Position Object
 Returned as a list via the `Chart.positions` property.
 
@@ -166,9 +182,9 @@ Sets the entire dataset for the series. Overwrites existing data.
 
 ### `update(item: dict | polars.DataFrame | polars.Series)`
 Appends new data to the series.
-- If a `dict` is passed, it is treated as a single bar.
+- If a `dict` is passed, it is converted to a single row DataFrame.
 - If a `DataFrame` is passed, only the **first row** is used.
-- **Note**: The backend expects OHLC keys: `time`, `open`, `high`, `low`, `close` (and `value` for line series).
+- **Note**: The backend expects OHLC keys: `time`, `open`, `high`, `low`, `close` (and `value` for line series). Timestamps are auto-normalized via the `DateTimeEncoder`.
 
 ### `apply_options(options: dict)`
 Supports Lightweight Charts (LWC) series options.

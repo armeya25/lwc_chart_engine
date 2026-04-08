@@ -35,6 +35,10 @@ Detailed usage examples can be found in the [examples/](examples/) directory:
 - [static_charts.py](examples/static_charts.py): Basic usage with Polars DataFrames.
 - [live_chart_emulation.py](examples/live_chart_emulation.py): Real-time data streaming simulation.
 
+## 📚 Documentation
+
+For a full list of methods, configuration options, and advanced drawing logic, see the **[API Documentation](docs/api.md)**.
+
 ## 🏗 Prerequisites
 
 To build the package from source, ensure you have the following toolchains and dependencies installed.

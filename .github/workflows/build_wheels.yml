@@ -5,7 +5,7 @@ on:
     branches:
       - main
     tags:
-      - 'v*'
+      - "v*"
   workflow_dispatch:
 
 permissions:
@@ -13,6 +13,10 @@ permissions:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.sha }}
+  cancel-in-progress: true
 
 jobs:
   build_wheels:
@@ -140,7 +144,7 @@ jobs:
   commit_wheels:
     name: Commit Wheels back to Repo
     needs: build_wheels
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -168,7 +172,7 @@ jobs:
           mkdir -p wheels
           git add -f wheels/*.whl
           git commit -m "🚀 build: automated wheel generation for v${{ steps.get_version.outputs.VERSION }} *maintained by amit vaidya*" || echo "No changes to commit"
-          git push
+          git push origin HEAD:main
 
   publish_pypi:
     name: Publish to PyPI
@@ -187,7 +191,7 @@ jobs:
           merge-multiple: true
 
       - name: Publish to PyPI
-        uses: PyO3/maturin-action@v1
+        uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          command: upload
-          args: --non-interactive --skip-existing dist/*.whl
+          packages-dir: dist/
+          skip-existing: true
