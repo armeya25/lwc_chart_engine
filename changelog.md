@@ -5,14 +5,16 @@ All notable changes to the **LWC Chart Engine** will be documented in this file.
 ## [0.3.6] - 2026-04-08
 
 ### 🛠 Build & Workflow Optimizations
-- **CI/CD Validation Fix**: Resolved the "Value 'pypi' is not valid" GitHub Actions error by removing the redundant and mismatched `environment` configuration.
+- **CI/CD Validation Fix**: Resolved the "Value 'pypi' is not valid" GitHub Actions error by removing mismatched `environment` configuration.
 - **Package Metadata Completion**: Finalized `pyproject.toml` with project URLs, keywords, authors, and classification metadata for PyPI.
 - **PyPI Trusted Publishing (OIDC)**: Migrated from manual API tokens to modern, secure OIDC authentication (Trusted Publishing).
-- **GitHub Actions Upgrades**: Upgraded core workflow actions to their latest versions (`upload-artifact@v7`, `download-artifact@v8`) to maintain consistency and Node.js 24 compatibility.
+- **GitHub Actions Version Corrections**: Downgraded core actions to stable versions (`checkout@v4`, `setup-node@v4`, `setup-python@v5`, `upload-artifact@v4`, `download-artifact@v4`) after resolving "Action not found" errors.
+- **Test PyPI Verification**: Integrated `publish_test_pypi` job for automated verification of the publishing pipeline on every push to `main`.
+- **Enhanced CI Observability**: Added verbose logging and artifact structure inspection (`ls -R dist`) for better pipeline transparency.
 - **CI Reliability Fixes**:
-  - Resolved illegal character errors in the `Get Version` CI step by fixing incorrect backslash escaping in the GitHub Actions YAML workflow.
+  - Resolved illegal character errors in the `Get Version` CI step by fixing incorrect backslash escaping in the workflow.
   - Finalized cross-platform Python-based packaging for robust wheel generation across all platforms (Windows, Linux, macOS).
-- **Security & Linter Resolution**: Removed the explicit `PYPI_API_TOKEN` secret requirement, eliminating "invalid context" warnings in VS Code and improving repository security.
+- **Security & Linter Resolution**: Removed the explicit `PYPI_API_TOKEN` secret requirement, eliminating "invalid context" warnings.
 
 ## [0.3.5] - 2026-04-08
 
