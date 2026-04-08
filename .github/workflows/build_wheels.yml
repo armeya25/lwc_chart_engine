@@ -1,9 +1,11 @@
-name: CI/CD Build Wheels
+name: CI/CD Build & Publish
 
 on:
   push:
     branches:
       - main
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 permissions:
@@ -130,7 +132,7 @@ jobs:
           fi
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-${{ matrix.os }}
           path: dist/*.whl
@@ -138,6 +140,7 @@ jobs:
   commit_wheels:
     name: Commit Wheels back to Repo
     needs: build_wheels
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -145,7 +148,7 @@ jobs:
           fetch-depth: 0
 
       - name: Download all wheels
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           path: wheels
           pattern: wheels-*
@@ -163,6 +166,28 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           mkdir -p wheels
-          git add wheels/*.whl
+          git add -f wheels/*.whl
           git commit -m "🚀 build: automated wheel generation for v${{ steps.get_version.outputs.VERSION }} *maintained by amit vaidya*" || echo "No changes to commit"
           git push
+
+  publish_pypi:
+    name: Publish to PyPI
+    needs: build_wheels
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Download all wheels
+        uses: actions/download-artifact@v8
+        with:
+          path: dist
+          pattern: wheels-*
+          merge-multiple: true
+
+      - name: Publish to PyPI
+        uses: PyO3/maturin-action@v1
+        with:
+          command: upload
+          args: --non-interactive --skip-existing dist/*.whl
