@@ -2,8 +2,6 @@ name: CI/CD Build & Publish
 
 on:
   push:
-    branches:
-      - main
     tags:
       - "v*"
   workflow_dispatch:
