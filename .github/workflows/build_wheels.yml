@@ -170,6 +170,8 @@ jobs:
           mkdir -p wheels
           git add -f wheels/*.whl
           git commit -m "🚀 build: automated wheel generation for v${{ steps.get_version.outputs.VERSION }} *maintained by amit vaidya*" || echo "No changes to commit"
+          # Pull and rebase to ensure we are on top of the latest main
+          git pull origin main --rebase
           git push origin HEAD:main
 
   publish_pypi:
