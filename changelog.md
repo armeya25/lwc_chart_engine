@@ -5,6 +5,8 @@ All notable changes to the **LWC Chart Engine** will be documented in this file.
 ## [0.3.6] - 2026-04-08
 
 ### 🛠 Build & Workflow Optimizations
+- **CI/CD Validation Fix**: Resolved the "Value 'pypi' is not valid" GitHub Actions error by removing the redundant and mismatched `environment` configuration.
+- **Package Metadata Completion**: Finalized `pyproject.toml` with project URLs, keywords, authors, and classification metadata for PyPI.
 - **PyPI Trusted Publishing (OIDC)**: Migrated from manual API tokens to modern, secure OIDC authentication (Trusted Publishing).
 - **GitHub Actions Upgrades**: Upgraded core workflow actions to their latest versions (`upload-artifact@v7`, `download-artifact@v8`) to maintain consistency and Node.js 24 compatibility.
 - **CI Reliability Fixes**:
