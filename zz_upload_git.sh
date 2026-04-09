@@ -2,7 +2,7 @@
 
 # 🚀 Push and synchronize with GitHub
 # This script ensures your local branch is up-to-date and pushes both code and version tags.
-VERSION="0.4.0"
+VERSION="0.4.1"
 
 # 🔄 Synchronization & Rebase
 echo "📦 Checking for unstaged changes..."
@@ -63,5 +63,20 @@ git push origin main
 
 echo "🏷 Pushing version tags..."
 git push origin --tags
+
+# 🧹 Clean up old tags (keep only latest 3)
+echo "🧹 Cleaning up older tags (keeping latest 3)..."
+# Get all tags except the 3 most recent ones (sorted by version)
+TAGS_TO_DELETE=$(git tag -l --sort=-v:refname | tail -n +4)
+
+if [ -n "$TAGS_TO_DELETE" ]; then
+  for TAG in $TAGS_TO_DELETE; do
+    echo "🗑 Deleting old tag: $TAG"
+    git tag -d "$TAG"
+    git push origin --delete "$TAG" || echo "Tag $TAG already removed from remote."
+  done
+else
+  echo "✅ No old tags to delete."
+fi
 
 echo "✨ Sync and Publish complete for v${CLEAN_VERSION}!"

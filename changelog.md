@@ -2,6 +2,12 @@
 
 All notable changes to the **LWC Chart Engine** will be documented in this file.
  
+## [0.4.1] - 2026-04-09
+
+### 🛠 Build & Workflow Optimizations
+- **Summary**: Automated Git Tag Maintenance.
+- **Details**: Implemented logic in `zz_upload_git.sh` to automatically prune older tags, keeping only the 3 most recent versions to prevent repository bloat.
+
 ## [0.4.0] - 2026-04-09
 
 ### 🚀 Core Improvements / Features
