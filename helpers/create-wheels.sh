@@ -6,7 +6,7 @@ set -e
 # Change to the project root directory
 cd "$(dirname "$0")/.."
 
-VERSION="0.5.9"
+VERSION="0.5.10"
 PACKAGE_NAME="chart_engine"
 SOURCE_DIR="src/chart_engine"
 
@@ -59,6 +59,7 @@ export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
 
 # First, ensure binaries are built so we can compress them before packaging
 echo "📂 Compiling and preparing binaries for packaging..."
+export MATURIN_REPAIR_OPTIONS="--exclude libwebkit2gtk-4.0.so.37 --exclude libwebkit2gtk-4.1.so.0 --exclude libgtk-3.so.0 --exclude libjavascriptcoregtk-4.0.so.18 --exclude libjavascriptcoregtk-4.1.so.0 --exclude libicudata.so.74 --exclude libicui18n.so.74 --exclude libicuuc.so.74 --exclude libcairo.so.2 --exclude libpango-1.0.so.0 --exclude libatk-1.0.so.0 --exclude libgstreamer-1.0.so.0 --exclude libgdk-3.so.0 --exclude libgdk_pixbuf-2.0.so.0 --exclude libgio-2.0.so.0 --exclude libglib-2.0.so.0 --exclude libgobject-2.0.so.0"
 echo "Current Directory: $(pwd)"
 ls -l src/src-tauri/Cargo.toml || echo "❌ Error: Cannot find Cargo.toml at $(pwd)/src/src-tauri/Cargo.toml"
 cargo build --release --manifest-path src/src-tauri/Cargo.toml --features python-bridge

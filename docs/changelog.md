@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.10] - 2026-04-09
+
+### 🛠 Build & Workflow Optimizations
+- **Binary Size Optimization**: Optimized the Linux `manylinux` wheel by excluding heavy GUI shared libraries (WebKitGTK, GTK3) from the bundle. This reduces the wheel size from ~80MB to <10MB.
+- **GHA Permission Restoration**: Updated the GitHub Actions pipeline to explicitly restore executable permissions (`chmod +x`) after wheel repacking, preventing `PermissionError` on Linux.
+- **Enhanced High Compression**: Expanded the UPX step in CI/CD to include the main `chart_engine` binary, aligning automated builds with local optimization standards.
+
+### 🎯 Bug Fixes
+- **Linux Execution Failure**: Resolved a critical `Permission Denied` error (Errno 13) that occurred when starting the chart engine background process.
+
+### ⚙ Internal Refactoring
+- **Version Synchronization**: Unified project version to `v0.5.10` across all metadata, build scripts, and deployment configurations.
+
 ## [0.5.9] - 2026-04-09
 
 ### 🚀 Core Improvements & Stabilization

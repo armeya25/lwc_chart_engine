@@ -52,14 +52,29 @@ To build the package from source, ensure you have the following toolchains and d
 - **Maturin**: `pip install maturin` (for building the Python extension).
 
 ### 🐧 Linux Dependencies
+
+#### 🛠 For Building from Source
 **Ubuntu / Debian:**
 ```bash
-sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
+sudo apt update && sudo apt install -y libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
 ```
 
 **Arch Linux:**
 ```bash
 sudo pacman -S gtk3 webkit2gtk-4.1 libayatana-appindicator librsvg
+```
+
+#### 📦 For Running Pre-built Wheels
+If you installed the pre-built wheel from PyPI or GitHub, you only need the **runtime** libraries:
+
+**Ubuntu / Debian:**
+```bash
+sudo apt update && sudo apt install -y libgtk-3-0 libwebkit2gtk-4.1-0
+```
+
+**Fedora:**
+```bash
+sudo dnf install gtk3 webkit2gtk4.1
 ```
 
 ### 🍎 macOS Dependencies
