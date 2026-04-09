@@ -6,7 +6,7 @@ set -e
 # Change to the root directory
 cd "$(dirname "$0")"
 
-VERSION="0.3.11"
+VERSION="0.4.0"
 PACKAGE_NAME="chart_engine"
 SOURCE_DIR="src/chart_engine"
 
@@ -86,7 +86,7 @@ fi
 echo "📦 Generating production wheel (lightweight)..."
 mkdir -p wheels
 rm -f src/chart_engine/chart_engine_lib.so # Never include manually copied libs in the wheel
-maturin build --release --features python-bridge --out wheels --compatibility linux
+maturin build --release --features python-bridge --out wheels --manylinux 2_39
 
 # High Compression Phase
 echo "🗜 Starting High Compression phase for the .whl..."
