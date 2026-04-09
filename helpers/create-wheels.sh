@@ -47,11 +47,11 @@ rm -rf src/chart_engine/__pycache__
 # 1. Install UI dependencies
 # 1. Install UI dependencies
 echo "📦 Synchronizing UI dependencies..."
-cd src && npm install && cd ..
+(cd src && npm install)
 
 # 2. Build minified frontend
 echo "📦 Building minified frontend..."
-cd src && npm run build:frontend && cd ..
+(cd src && npm run build:frontend)
 
 # 3. Build via Maturin (Consolidated Build)
 echo "🛠 Building optimized Python extension and standalone binary..."
@@ -86,13 +86,13 @@ fi
 
 # Build the wheel (.whl) for distribution
 echo "📦 Generating production wheel (lightweight)..."
-mkdir -p wheels
+mkdir -p dist
 rm -f src/chart_engine/chart_engine_lib.so # Never include manually copied libs in the wheel
-maturin build --release --features python-bridge --out wheels --manylinux 2_39
+maturin build --release --features python-bridge --out dist --manylinux 2_39
 
 # High Compression Phase
 echo "🗜 Starting High Compression phase for the .whl..."
-WHEEL_FILE=$(ls wheels/*.whl | head -n 1)
+WHEEL_FILE=$(ls dist/*.whl | head -n 1)
 if [ -f "$WHEEL_FILE" ]; then
     TMP_DIR=$(mktemp -d)
     echo "📂 Unpacking wheel to $TMP_DIR..."
@@ -134,7 +134,7 @@ if record_path:
     
     echo "📦 Repacking highly-compressed wheel..."
     WHEEL_NAME=$(basename "$WHEEL_FILE")
-    WHEEL_OUT_DIR=$(realpath wheels)
+    WHEEL_OUT_DIR=$(realpath dist)
     python3 -c "import zipfile, os;
 with zipfile.ZipFile('$WHEEL_OUT_DIR/$WHEEL_NAME.new', 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
     for root, dirs, files in os.walk('$TMP_DIR'):
@@ -150,7 +150,7 @@ with zipfile.ZipFile('$WHEEL_OUT_DIR/$WHEEL_NAME.new', 'w', zipfile.ZIP_DEFLATED
 "
     mv "$WHEEL_OUT_DIR/$WHEEL_NAME.new" "$WHEEL_FILE"
     rm -rf "$TMP_DIR"
-    echo "✅ High compression complete."
+    echo "✅ Highly-compressed wheel ready in dist/"
 fi
 
 # Final Cleanup: Remove staging binaries

@@ -40,7 +40,7 @@ def run_trading_demo():
     # 2. Programmatically execute a trade in the Rust backend
     # This will appear in the UI's position table
     print("Executing programmatic Buy order...")
-    chart.trader_execute("buy", 1.0, price=entry_price, tp=tp_price, sl=sl_price, series=main)
+    chart.trader_execute("buy", 1.0, price=entry_price, tp=tp_price, sl=sl_price, series=main, time=df["time"][-1])
     
     chart.show_notification("Trade Executed Programmatically", "success")
     

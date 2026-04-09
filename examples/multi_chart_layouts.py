@@ -17,7 +17,10 @@ def generate_sample_data(num_bars=100, trend=1.0):
 def run_multi_chart_demo():
     # Initialize main chart
     chart = Chart(title="Multi-Chart Layout Demo")
-    
+
+    ## disable sync
+    chart.set_sync(False)
+
     # 1. Change Layout to "1P2" (1 Primary, 2 Secondary)
     # This returns a list of SubChart objects
     subcharts = chart.set_layout("1p2")
@@ -34,14 +37,14 @@ def run_multi_chart_demo():
     main_series.set_data(data_main)
     
     # 3. Add data to the secondary charts
-    chart1_series = subcharts[1].create_line_series("Overlay Index")
+    chart1_series = subcharts[1].create_candlestick_series("Overlay Index")
     chart1_series.set_data(data_sub1)
     
     chart2_series = subcharts[2].create_candlestick_series("Relative Strength")
     chart2_series.set_data(data_sub2)
     
     # 4. Enable crosshair synchronization
-    chart.set_sync(True)
+    chart.set_sync(False)
     
     # 5. Add notifications to show interaction
     chart.show_notification("Layout synchronized!", "success")

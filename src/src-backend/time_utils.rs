@@ -79,7 +79,7 @@ pub fn py_ensure_timestamp(val: &Bound<'_, PyAny>) -> PyResult<Option<i64>> {
          let dt = datetime_class.call_method1("combine", (val, time_class.call0()?))?;
          
          let timezone_utc = dt_module.getattr("timezone")?.getattr("utc")?;
-         let kwargs = pyo3::types::PyDict::new_bound(val.py());
+         let kwargs = pyo3::types::PyDict::new(val.py());
          kwargs.set_item("tzinfo", timezone_utc)?;
          
          let dt_utc = dt.call_method("replace", (), Some(&kwargs))?;

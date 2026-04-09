@@ -4,15 +4,35 @@ All notable changes to the **LWC Chart Engine** will be documented in this file.
  
 ## [0.5.2] - 2026-04-09
 
+### 🚀 Core Improvements / Features
+- **Summary**: Full Drawing Tool Suite.
+- **Details**: Implemented a comprehensive set of interactive tools including Trendlines, Fibonacci Retracement, Supply Zone Boxes, Long/Short (Risk/Reward) positions, Extended Rays, and Horizontal Resistance lines.
+- **Summary**: Interactive Marker API.
+- **Details**: Added support for programmatic and interactive markers with alignment-aware coordinate matching.
+
 ### 🎯 UI & API Enhancements
+- **Summary**: Reactive Resize Integration.
+- **Details**: Implemented `ResizeObserver` for all chart cells to resolve "blank chart" rendering issues during multi-pane layout transitions.
+- **Summary**: Active Pane Highlighting.
+- **Details**: Added visual focus indicators (glow/border) that follow interaction in multi-chart layouts.
+- **Summary**: Automatic Data Type Fallbacks.
+- **Details**: Built resiliency into the frontend to automatically map `close` prices to `value` fields for line/area series when provided with OHLC data.
 - **Summary**: Expanded API Examples.
-- **Details**: Created 4 new detailed scripts (`drawing_tools.py`, `multi_chart_layouts.py`, `paper_trading.py`, `ui_customization.py`) covering all major technical and visual features.
-- **Summary**: Updated Documentation.
-- **Details**: Revamped the `README.md` examples section for better discoverability.
+- **Details**: Created and refined demonstration scripts (`drawing_tools.py`, `multi_chart_layouts.py`, `paper_trading.py`) for better feature discoverability.
+- **Summary**: Fixed Python-Rust Bridge Conflicts.
+- **Details**: Resolved `TypeError` in `Series.add_marker` where logic was double-passing arguments to the underlying bridge.
+
+### 🛠 Build & Workflow Optimizations
+- **Summary**: Robust Build Pipeline.
+- **Details**: Refactored `create-wheels.sh` with subshells and relative path sanitization to prevent directory mismatch errors.
+- **Summary**: ESM Consolidation.
+- **Details**: Fixed module-level naming conflicts and centralized UI-related loading logic into the correct ES modules.
+- **Summary**: Standardized CI/CD Distribution.
+- **Details**: Aligned GitHub Actions and local scripts to use `dist/` as the primary artifact directory.
 
 ### ⚙ Internal Refactoring
-- **Summary**: Core API Cleanup.
-- **Details**: Removed the dead `__trader_sync` private method from `chart.py` now that position syncing is natively handled in Rust.
+- **Summary**: Rust Backend Modernization.
+- **Details**: Resolved PyO3 deprecation warnings by updating `new_bound` to `new` across the time utilities module.
 
 ## [0.5.1] - 2026-04-09
 

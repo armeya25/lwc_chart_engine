@@ -29,6 +29,14 @@ export function showNotification(message, type = 'info', duration = 3000, textCo
     }, duration);
 }
 
+export function hideLoader() {
+    const el = document.getElementById('loading');
+    if (el) {
+        el.style.opacity = '0';
+        setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 500);
+    }
+}
+
 // Legend reference is now fetched dynamically to avoid null references if DOM isn't ready
 
 export function toggleLegend() {
@@ -125,14 +133,13 @@ export function createLayout(rawType) {
         }
     }
     
-    // Always trigger a resize pass
-    requestAnimationFrame(() => {
-        window.charts.forEach((c, id) => {
-            const cell = document.getElementById(`chart-cell-${id.split('-')[1]}`);
-            if (cell && cell.style.display !== 'none' && cell.clientWidth > 0) {
-                c.applyOptions({ width: cell.clientWidth, height: cell.clientHeight });
-            }
-        });
+    // Resize pass is now handled by ResizeObserver, but we can trigger 
+    // a manual resize update to ensure immediate alignment on layout switch.
+    window.charts.forEach((c, id) => {
+        const cell = document.getElementById(`chart-cell-${id.split('-')[1]}`);
+        if (cell && cell.style.display !== 'none' && cell.clientWidth > 0) {
+            c.applyOptions({ width: cell.clientWidth, height: cell.clientHeight });
+        }
     });
 }
 
@@ -179,8 +186,23 @@ export function initCharts() {
                 window.charts.set(chartId, chart);
                 window.SyncManager.register(chart, cell);
 
-                cell.onmouseenter = () => { window.activeChartId = chartId; };
+                cell.onmouseenter = () => { 
+                    window.activeChartId = chartId;
+                    document.querySelectorAll('.chart-cell').forEach(c => c.classList.remove('active'));
+                    cell.classList.add('active');
+                };
                 const tooltip = document.createElement('div'); tooltip.className = 'floating-tooltip'; cell.appendChild(tooltip);
+
+                // Use ResizeObserver for robust layout handling
+                const resizeObserver = new ResizeObserver(entries => {
+                    for (let entry of entries) {
+                        const { width, height } = entry.contentRect;
+                        if (width > 0 && height > 0) {
+                            chart.applyOptions({ width, height });
+                        }
+                    }
+                });
+                resizeObserver.observe(cell);
 
                 chart.subscribeCrosshairMove(param => {
                     if (!window.tooltipEnabled || !param.point || !param.time) { 

@@ -7,7 +7,7 @@ on:
     tags:
       - "v*"
     paths-ignore:
-      - "wheels/**"
+      - "dist/**"
   workflow_dispatch:
 
 permissions:
@@ -160,13 +160,13 @@ jobs:
 
       - name: Clear Old Wheels
         run: |
-          rm -rf wheels/*.whl
-          mkdir -p wheels
+          rm -rf dist/*.whl
+          mkdir -p dist
 
       - name: Download all wheels
         uses: actions/download-artifact@v4
         with:
-          path: wheels
+          path: dist
           pattern: wheels-*
           merge-multiple: true
 
@@ -181,8 +181,8 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          mkdir -p wheels
-          git add -f wheels/*.whl
+          mkdir -p dist
+          git add -f dist/*.whl
           git commit -m "🚀 build: automated wheel generation for v${{ steps.get_version.outputs.VERSION }} *maintained by amit vaidya*" || echo "No changes to commit"
           # Pull and rebase to ensure we are on top of the latest main
           git pull origin main --rebase

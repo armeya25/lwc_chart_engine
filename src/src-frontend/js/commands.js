@@ -1,6 +1,8 @@
 /**
  * Command Dispatcher & Handlers
  */
+import { SyncManager } from './core.js';
+import { showNotification, createLayout, hideLoader } from './ui.js';
 
 export const CommandQueue = {
     queue: [],
@@ -56,14 +58,6 @@ export const CommandQueue = {
 const getSId = (cmd) => cmd.id || cmd.seriesId || cmd.series_id;
 
 window.isReady = false;
-export function hideLoader() {
-    const el = document.getElementById('loading');
-    if (el) {
-        el.style.opacity = '0';
-        setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 500);
-    }
-};
-
 export function handleCommand(cmd) {
     if (typeof cmd === 'string') cmd = JSON.parse(cmd);
     CommandQueue.push(cmd);
@@ -73,8 +67,8 @@ export const CommandHandlers = {
     configure_chart: (targetChart, cmd) => { if (targetChart) targetChart.applyOptions(cmd.data); },
     set_layout: (_targetChart, cmd) => { 
         const type = cmd.layout || cmd.data?.type || 'single';
-        window.createLayout(type); 
-        if (window.hideLoader) window.hideLoader();
+        createLayout(type); 
+        if (hideLoader) hideLoader();
     },
     create_line_series: (targetChart, cmd, chartId) => {
         if (!targetChart) return;
@@ -134,7 +128,14 @@ export const CommandHandlers = {
         const sid = getSId(cmd);
         const series = window.seriesMap.get(sid);
         if (series) {
-            series.setData(cmd.data);
+            // Auto-fallback: if it's a line/area series and data has no 'value', use 'close'
+            const processedData = cmd.data.map(item => {
+                if (item.value === undefined && item.close !== undefined) {
+                    return { ...item, value: item.close };
+                }
+                return item;
+            });
+            series.setData(processedData);
             if (_targetChart && cmd.data.length > 5) _targetChart.timeScale().fitContent();
             if (typeof BoxManager !== 'undefined') BoxManager.updatePositions();
             if (typeof PositionToolManager !== 'undefined') PositionToolManager.updatePositions();
@@ -278,7 +279,7 @@ export const CommandHandlers = {
             container.style.cssText = `position: fixed; bottom: 20px; left: 20px; z-index: 10000; display: flex; flex-direction: column-reverse; gap: 10px; pointer-events: none;`;
             document.body.appendChild(container);
         }
-        window.showNotification(cmd.data.message, cmd.data.type || 'info', cmd.data.duration || 3000, cmd.data.text_color || null);
+        showNotification(cmd.data.message, cmd.data.type || 'info', cmd.data.duration || 3000, cmd.data.text_color || null);
     },
     set_trend_info_visibility: (_targetChart, cmd) => {
         const panel = document.getElementById('trend-info');

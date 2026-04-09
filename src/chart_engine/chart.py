@@ -264,7 +264,7 @@ class Chart:
         # 0 = Normal, 1 = Magnet
         self._send_command({"action": "set_crosshair_mode", "data": {"mode": mode}})
 
-    def set_sync(self, enabled=True):
+    def set_sync(self, enabled=False):
         self._send_command({"action": "set_sync", "data": {"enabled": enabled}})
     
     def take_screenshot(self, chart_id="chart-0"):
@@ -334,9 +334,10 @@ class Chart:
         cmds = self._rust_trader.update_price(price)
         for c in cmds: self._send_command(json.loads(c))
 
-    def trader_execute(self, side, qty, price=None, tp=None, sl=None, series=None):
+    def trader_execute(self, side, qty, price=None, tp=None, sl=None, series=None, time=None):
         """Programmatically execute a trade in the Rust backend"""
-        cmds = self._rust_trader.execute(side, qty, price, tp, sl)
+        st = _ensure_timestamp(time) if time else None
+        cmds = self._rust_trader.execute(side, qty, price, tp, sl, st)
         for c in cmds: self._send_command(json.loads(c))
         
         if series:
@@ -344,6 +345,7 @@ class Chart:
             if exec_price:
                 is_buy = side.lower() == 'buy'
                 series.add_marker(
+                    time=time,
                     position="belowBar" if is_buy else "aboveBar",
                     shape="arrowUp" if is_buy else "arrowDown",
                     color="#00e676" if is_buy else "#ff5252",

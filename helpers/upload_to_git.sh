@@ -16,8 +16,8 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
   HAS_STASH=true
 fi
 
-echo "🔄 Pulling from remote and rebasing..."
-git pull --rebase origin main
+# echo "🔄 Pulling from remote and rebasing..."
+# git pull --rebase origin main
 
 if [ "$HAS_STASH" = true ]; then
   echo "📤 Restoring your local changes..."
@@ -61,11 +61,11 @@ else
   git tag "v$CLEAN_VERSION"
 fi
 
-echo "🚀 Pushing current branch to GitHub..."
-git push origin main
+echo "🚀 Pushing current branch to GitHub (FORCE)..."
+git push origin main --force
 
-echo "🏷 Pushing version tags..."
-git push origin --tags
+echo "🏷 Pushing version tags (FORCE)..."
+git push origin --tags --force
 
 # 🧹 Clean up old tags (keep only latest 3)
 echo "🧹 Cleaning up older tags (keeping latest 3)..."

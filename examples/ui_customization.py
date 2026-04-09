@@ -22,10 +22,10 @@ def run_ui_demo():
     chart.series["main"].set_data(df)
     
     # 2. Set Watermark (Branding)
-    chart.set_watermark("ANTIGRAVITY v0.5.0")
+    chart.set_watermark("testing watermark")
     
     # 3. Timezone Management
-    chart.set_timezone("Europe/London")
+    chart.set_timezone("Asia/Kolkata")
     
     # 4. Toggle UI Components
     print("Customizing UI components...")
@@ -39,10 +39,17 @@ def run_ui_demo():
     # 6. Change Legend / Data Context
     chart.set_timeframe({"label": "1D", "value": 1440})
     
-    # 7. Take a automated screenshot (Saved to project root)
-    chart.show_notification("Taking UI snapshot...", "info")
-    time.sleep(1)
-    chart.take_screenshot()
+    # 7. Take an automated screenshot (Saved to project root)
+    # We move this to a thread so it doesn't block the main UI loop
+    import threading
+    def take_delayed_screenshot():
+        time.sleep(3)  # Give time for the window to settle
+        chart.show_notification("Auto-capturing UI snapshot...", "info")
+        time.sleep(1)
+        chart.take_screenshot()
+        print("📸 UI snapshot saved to project root.")
+
+    threading.Thread(target=take_delayed_screenshot, daemon=True).start()
     
     print("UI customized. Hover over the chart to see the magnet crosshair and tooltips.")
     chart.show()

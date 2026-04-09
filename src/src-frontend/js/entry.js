@@ -14,12 +14,12 @@ import {
     scrollToRealTime, 
     changeLayout, 
     createLayout, 
-    updatePositionsUI 
+    updatePositionsUI,
+    hideLoader
 } from './ui.js';
 import { 
     CommandQueue, 
     handleCommand, 
-    hideLoader, 
     CommandHandlers 
 } from './commands.js';
 
