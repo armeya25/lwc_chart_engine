@@ -23,9 +23,17 @@ export const CommandQueue = {
             if (performance.now() - start > this.BUDGET_MS) {
                 requestAnimationFrame(() => this.process()); return;
             }
-            const cmd = this.queue.shift();
-            try { this.processCommandSync(cmd); } catch (e) {
-                console.error("Command execution error:", e, cmd);
+            
+            // Peak at the next command instead of shifting immediately
+            const cmd = this.queue[0];
+            const wasProcessed = this.processCommandSync(cmd);
+            
+            if (wasProcessed) {
+                this.queue.shift(); // Only remove if successfully processed
+            } else {
+                // If not ready, wait for the next frame
+                requestAnimationFrame(() => this.process());
+                return;
             }
         }
         this.isProcessing = false;
@@ -37,16 +45,21 @@ export const CommandQueue = {
         
         if (!handler) {
             console.warn("Unknown command action:", action);
-            return;
+            return true; // Mark as processed to remove from queue
         }
 
         try {
-            // console.log(`Command Dispatcher: Processing [${action}] on [${chartId}]`, cmd);
             const targetChart = window.charts.get(chartId);
-            if (!targetChart && action !== 'set_layout' && action !== 'show_notification' && !action.includes('remove_all') && action !== 'hide_loading') {
-                return; // Silent ignore to allow pre-allocation to work
+            
+            // Core safety: If the target chart is missing and it's not a global command, 
+            // signal that we aren't ready to process this yet.
+            const isGlobal = (action === 'set_layout' || action === 'show_notification' || action === 'hide_loading');
+            if (!targetChart && !isGlobal) {
+                return false; 
             }
+
             handler(targetChart, cmd, chartId);
+            return true;
         } catch (e) {
             console.error(`Error executing ${action} on ${chartId}:`, e);
             const status = document.querySelector('.loading-text');

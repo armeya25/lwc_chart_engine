@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "tauri": "tauri",
-    "build:frontend": "mkdir -p src-frontend/dist && npx esbuild src-frontend/js/entry.js --bundle --minify --outfile=src-frontend/dist/app.min.js && npx esbuild src-frontend/terminal.css --minify --outfile=src-frontend/dist/terminal.css && cp src-frontend/index.dist.html src-frontend/dist/index.html && cp src-frontend/lightweight-charts.js src-frontend/dist/lightweight-charts.js"
+    "build:frontend": "node build-frontend.js"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",

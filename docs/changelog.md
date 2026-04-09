@@ -1,7 +1,27 @@
 # Changelog
 
 All notable changes to the **LWC Chart Engine** will be documented in this file.
- 
+
+## [0.5.5] - 2026-04-09
+
+### 🚀 Core Improvements & CI/CD
+- **Summary**: Cross-Platform Build System.
+- **Details**: Replaced POSIX-style shell scripts in `package.json` with a robust Node.js `build-frontend.js` script to resolve CI/CD failures on Windows runners.
+- **Summary**: Environment Resilience.
+- **Details**: Standardized all build and upload scripts to use the `dist/` directory for unified artifact management across local and GitHub environments.
+- **Summary**: Force-Push Synchronization.
+- **Details**: Updated `upload_to_git.sh` to a streamlined force-push model for faster synchronization and explicit remote state mirroring.
+
+### 🎯 UI & API Enhancements
+- **Summary**: Active Pane Highlighting.
+- **Details**: Added visual focus indicators (glow/border) that follow interaction in multi-chart layouts.
+- **Summary**: Automatic Data Type Fallbacks.
+- **Details**: Built resiliency into the frontend to automatically map `close` prices to `value` fields for line/area series when provided with OHLC data.
+- **Summary**: Live Marker Timestamping.
+- **Details**: Fixed a crash in `trader_execute` by providing automatic real-time timestamping for markers when no explicit time is provided.
+- **Summary**: Initialization Handshaking.
+- **Details**: Added a deferred command queue in the frontend to ensure no data is lost during the startup "cold-start" phase.
+
 ## [0.5.2] - 2026-04-09
 
 ### 🚀 Core Improvements / Features
