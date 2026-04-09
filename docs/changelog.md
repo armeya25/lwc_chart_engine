@@ -1,6 +1,14 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+## [0.6.1] - 2026-04-09
+
+### 🛠 Build & Workflow Optimizations
+- **Summary**: Enhanced Git synchronization and push workflow.
+- **Details**: Improved `helpers/upload_to_git.sh` with dynamic version extraction from `pyproject.toml`, automatic remote synchronization (pull/rebase) before pushing, and removed potentially destructive force-push flags for improved repository safety.
+
+### ⚙ Internal Refactoring
+- **Summary**: Resolved repository synchronization corruption.
+- **Details**: Fixed the "incorrect old value provided" Git error by rebuilding local tracking references and ensuring clean synchronization with `origin/main`.
 
 ## [0.6.0] - 2026-04-09
 

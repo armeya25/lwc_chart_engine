@@ -5,7 +5,7 @@
 # Change to the project root directory
 cd "$(dirname "$0")/.."
 
-VERSION="0.6.0"
+VERSION=$(grep "^version =" pyproject.toml | sed 's/version = "\(.*\)"/\1/')
 
 # 🔄 Synchronization & Rebase
 echo "📦 Checking for unstaged changes..."
@@ -16,8 +16,8 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
   HAS_STASH=true
 fi
 
-# echo "🔄 Pulling from remote and rebasing..."
-# git pull --rebase origin main
+echo "🔄 Pulling from remote and rebasing..."
+git pull --rebase origin main
 
 if [ "$HAS_STASH" = true ]; then
   echo "📤 Restoring your local changes..."
@@ -50,22 +50,24 @@ else
   sed -i "s/^version = \".*\"/version = \"$CLEAN_VERSION\"/" src/src-tauri/Cargo.toml
 fi
 
-# 4. Check if a tag for this version already exists
+# 4. Synchronize and Commit All changes
+echo "📝 Staging all changes..."
+git add .
+git commit -m "🚀 build: synchronize version v$CLEAN_VERSION and apply project updates" || echo "No changes to commit."
+
+# 5. Handle Tagging
 if git rev-parse "v$CLEAN_VERSION" >/dev/null 2>&1; then
   echo "🏷 Tag v$CLEAN_VERSION already exists. Skipping tag creation."
 else
   echo "🏷 Creating new tag v$CLEAN_VERSION..."
-  # Commit the version bump if there are changes
-  git add pyproject.toml helpers/create-wheels.sh src/src-tauri/Cargo.toml
-  git commit -m "🚀 build: synchronize version v$CLEAN_VERSION" || echo "No changes to commit for version bump."
   git tag "v$CLEAN_VERSION"
 fi
 
-echo "🚀 Pushing current branch to GitHub (FORCE)..."
-git push origin main --force
+echo "🚀 Pushing current branch to GitHub..."
+git push origin main
 
-echo "🏷 Pushing version tags (FORCE)..."
-git push origin --tags --force
+echo "🏷 Pushing version tags..."
+git push origin --tags
 
 # 🧹 Clean up old tags (keep only latest 3)
 echo "🧹 Cleaning up older tags (keeping latest 3)..."
