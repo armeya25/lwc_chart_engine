@@ -6,7 +6,7 @@ set -e
 # Change to the project root directory
 cd "$(dirname "$0")/.."
 
-VERSION="0.5.5"
+VERSION="0.5.9"
 PACKAGE_NAME="chart_engine"
 SOURCE_DIR="src/chart_engine"
 
@@ -103,9 +103,9 @@ if [ -f "$WHEEL_FILE" ]; then
     find "$TMP_DIR" -type f -name "chart_engine" -exec chmod +x {} +
 
     echo "⚡ High-compressing internal binaries (UPX)..."
-    # Use -type f to skip directories and --force just in case
-    find "$TMP_DIR" -type f -name "*.so" -exec ./upx --best --lzma --force {} + || echo "⚠️ Internal UPX failed for .so"
-    find "$TMP_DIR" -type f -name "chart_engine" -exec ./upx --best --lzma --force {} + || echo "⚠️ Internal UPX failed for binary"
+    # Use -type f to skip directories and --force just in case. Add || true to prevent build failure.
+    find "$TMP_DIR" -type f -name "*.so" -exec ./upx --best --lzma --force {} + || echo "⚠️ Internal UPX skipped/failed for .so"
+    find "$TMP_DIR" -type f -name "chart_engine" -exec ./upx --best --lzma --force {} + || echo "⚠️ Internal UPX skipped/failed for binary"
     
     echo "✍ Updating RECORD file hashes and sizes..."
     # We need to update the SHA256 and size for all modified files in the RECORD file
@@ -135,7 +135,8 @@ if record_path:
     echo "📦 Repacking highly-compressed wheel..."
     WHEEL_NAME=$(basename "$WHEEL_FILE")
     WHEEL_OUT_DIR=$(realpath dist)
-    python3 -c "import zipfile, os;
+    python3 -c "
+import zipfile, os
 with zipfile.ZipFile('$WHEEL_OUT_DIR/$WHEEL_NAME.new', 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
     for root, dirs, files in os.walk('$TMP_DIR'):
         for file in files:

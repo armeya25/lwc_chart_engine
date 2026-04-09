@@ -5,7 +5,7 @@
 # Change to the project root directory
 cd "$(dirname "$0")/.."
 
-VERSION="0.5.5"
+VERSION="0.5.8"
 
 # 🔄 Synchronization & Rebase
 echo "📦 Checking for unstaged changes..."

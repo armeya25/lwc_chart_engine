@@ -28,10 +28,13 @@ function updateStatus(text) {
 window.getSeriesForChart = function (chartId) {
     const seriesSet = window.chartSeriesMap.get(chartId);
     if (seriesSet && seriesSet.size > 0) {
-        const firstId = seriesSet.values().next().value;
-        return window.seriesMap.get(firstId);
+        // Find the first series that actually exists in our global map
+        for (const sid of seriesSet) {
+            const series = window.seriesMap.get(sid);
+            if (series) return series;
+        }
     }
-    return window.seriesMap.get('main');
+    return null;
 };
 
 // --- Sync Manager ---
@@ -54,7 +57,12 @@ export const SyncManager = {
             this.isSyncing = true;
             try {
                 this.charts.forEach(otherChart => {
-                    if (otherChart !== chart) otherChart.timeScale().setVisibleLogicalRange(range);
+                    // Check if otherChart is still in the DOM and visible
+                    const chartId = [...window.charts.entries()].find(([_, c]) => c === otherChart)?.[0];
+                    const cell = document.getElementById(chartId?.replace('chart-', 'chart-cell-'));
+                    if (otherChart !== chart && cell && cell.style.display !== 'none') {
+                        otherChart.timeScale().setVisibleLogicalRange(range);
+                    }
                 });
             } finally { this.isSyncing = false; }
             this.triggerRedraw();
@@ -72,11 +80,16 @@ export const SyncManager = {
             try {
                 this.charts.forEach(otherChart => {
                     if (otherChart === chart) return;
+                    
+                    const targetChartId = [...window.charts.entries()].find(([_, c]) => c === otherChart)?.[0];
+                    if (!targetChartId) return;
+
+                    const cell = document.getElementById(targetChartId.replace('chart-', 'chart-cell-'));
+                    if (!cell || cell.style.display === 'none') return;
+
                     if (!param.time || param.point === undefined || param.point.x < 0) {
-                        otherChart.clearCrosshairPosition(); return;
-                    }
-                    let targetChartId = [...window.charts.entries()].find(([id, c]) => c === otherChart)?.[0];
-                    if (targetChartId) {
+                        otherChart.clearCrosshairPosition();
+                    } else {
                         const series = window.getSeriesForChart(targetChartId);
                         if (series) otherChart.setCrosshairPosition(NaN, param.time, series);
                     }

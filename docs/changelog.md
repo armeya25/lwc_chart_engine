@@ -1,8 +1,26 @@
 # Changelog
 
-All notable changes to the **LWC Chart Engine** will be documented in this file.
+All notable changes to this project will be documented in this file.
 
-## [0.5.5] - 2026-04-09
+## [0.5.9] - 2026-04-09
+
+### 🚀 Core Improvements & Stabilization
+- **Automated Column Aliasing**: The Rust backend now transparently handles `date` or `datetime` columns by mapping them to the expected `time` index, enabling true "plug-and-play" with standard historical data.
+- **Buffered Rendering & Cold-Starts**: Implemented a command retry queue in `commands.js` that buffers data instructions until the frontend is fully initialized, resolving the "blank chart" bug during fast application startups.
+- **PaperTrader Hardening**: Fixed a critical argument mismatch in the Rust bridge, enabling programmatic trade execution with full 64-bit timestamp support.
+
+### 🛠 Build & Workflow Optimizations
+- **Cross-Platform Build System**: Introduced `src/build-frontend.js`, a Node.js-based orchestrator that replaces POSIX shell commands. This ensures stable builds across Windows and Linux environments, specifically targeting GitHub Actions runner compatibility.
+- **Version Synchronization**: Standardized the project version to v0.5.9 across all configuration files and scripts.
+
+### 🎯 UI & API Enhancements
+- **Modernized SyncManager**: Overhauled the crosshair synchronization logic to use native series resolution. Crosshairs are now perfectly mirrored across multiple charts in multi-pane layouts without silent failures.
+- **Robust Screenshot Engine**: Refactored the snapshot system to use a Base64 bridge. This bypasses browser-level download restrictions in Tauri and allows screenshots (with custom filenames) to be saved directly to the project root.
+- **UI Interaction Scoping**: Globally exposed all toolbar and legend handlers to ensure compatibility with standard HTML event listeners in the bundled production application.
+
+### ⚙ Internal Refactoring
+- Cleaned up unused imports (`uuid`, `datetime`, `zoneinfo`) in `chart.py`.
+- Optimized the high-compression wheel repacking process to use cross-platform paths.
 
 ### 🚀 Core Improvements & CI/CD
 - **Summary**: Cross-Platform Build System.

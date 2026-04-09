@@ -19,7 +19,7 @@ def run_multi_chart_demo():
     chart = Chart(title="Multi-Chart Layout Demo")
 
     ## disable sync
-    chart.set_sync(False)
+    chart.set_sync(True)
 
     # 1. Change Layout to "1P2" (1 Primary, 2 Secondary)
     # This returns a list of SubChart objects

@@ -421,3 +421,15 @@ function setScaleMode(mode) {
         priceScale.applyOptions({ mode: 2 });
     }
 }
+window.toggleScaleControls = toggleScaleControls;
+window.setScaleMode = setScaleMode;
+window.showNotification = showNotification;
+window.toggleLegend = toggleLegend;
+window.addLegendItem = addLegendItem;
+window.toggleTrendInfo = toggleTrendInfo;
+window.scrollToRealTime = scrollToRealTime;
+window.changeLayout = changeLayout;
+window.createLayout = createLayout;
+window.updatePositionsUI = updatePositionsUI;
+window.hideLoader = hideLoader;
+window.initCharts = initCharts;

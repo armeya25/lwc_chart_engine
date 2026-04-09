@@ -95,7 +95,6 @@ jobs:
       - name: Compress Internal Library (UPX)
         shell: bash
         run: |
-          # Re-compressing the internal .so/.pyd files inside the wheel
           WHEEL_FILE=$(ls dist/*.whl | head -n 1)
           if [ -n "$WHEEL_FILE" ]; then
             echo "📦 Unpacking $WHEEL_FILE for high compression..."
@@ -105,8 +104,8 @@ jobs:
             # Find and compress shared libraries
             find tmp_wheel -type f \( -name "*.so" -o -name "*.pyd" \) -exec upx --best --lzma {} + || true
             
-            # Update RECORD file (Python one-liner to fix checksums and sizes)
-            python -c "
+            # Update RECORD file (Python logic)
+            python3 -c "
           import os, hashlib, base64
           record_path = next(iter(path for path in [os.path.join(r, 'RECORD') for r, d, f in os.walk('tmp_wheel')] if os.path.exists(path)), None)
           if record_path:
@@ -126,18 +125,22 @@ jobs:
                       lines.append(','.join(parts))
               with open(record_path, 'w') as f:
                   f.write('\n'.join(lines) + '\n')
-          "
-            python -c "import zipfile, os;
-            with zipfile.ZipFile('$WHEEL_FILE.new', 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
-                for root, dirs, files in os.walk('tmp_wheel'):
-                    for file in files:
-                        full_path = os.path.join(root, file)
-                        rel_path = os.path.relpath(full_path, 'tmp_wheel')
-                        st = os.stat(full_path)
-                        zinfo = zipfile.ZipInfo.from_file(full_path, rel_path)
-                        zinfo.external_attr = (st.st_mode & 0xFFFF) << 16
-                        with open(full_path, 'rb') as f:
-                            zf.writestr(zinfo, f.read())"
+            "
+            
+            # Repack the highly-compressed wheel
+            python3 -c "
+          import zipfile, os
+          with zipfile.ZipFile('$WHEEL_FILE.new', 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
+              for root, dirs, files in os.walk('tmp_wheel'):
+                  for file in files:
+                      full_path = os.path.join(root, file)
+                      rel_path = os.path.relpath(full_path, 'tmp_wheel')
+                      st = os.stat(full_path)
+                      zinfo = zipfile.ZipInfo.from_file(full_path, rel_path)
+                      zinfo.external_attr = (st.st_mode & 0xFFFF) << 16
+                      with open(full_path, 'rb') as f:
+                          zf.writestr(zinfo, f.read(), compress_type=zipfile.ZIP_DEFLATED)
+            "
             mv "$WHEEL_FILE.new" "$WHEEL_FILE"
             rm -rf tmp_wheel
           fi
