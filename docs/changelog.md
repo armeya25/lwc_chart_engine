@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0] - 2026-04-09
+
+### 🛠 Build & Workflow Optimizations
+- **Lightweight Linux Distribution**: Successfully reduced the Linux `manylinux` wheel size by **95%** (from 80MB+ to **4.3MB**) by skipping redundant library bundling and enabling binary stripping.
+- **CI/CD Publishing Robustness**: Restored the `environment: pypi` block and added manual `workflow_dispatch` support, ensuring reliable OIDC-based publishing and easier release management.
+- **Repository Hygiene**: Updated the automated build pipeline to explicitly clear old wheels from Git tracking, preventing binary accumulation in the `dist/` folder on GitHub.
+
+### 🎯 Documentation & UI
+- **Feature Showcase**: Enriched the `README.md` with new high-quality screenshots for Multi-Chart Layouts and Drawing Tools.
+- **Runtime Dependency Guide**: Provided a comprehensive step-by-step guide for Linux users to install required runtime libraries, ensuring the new lightweight binaries run seamlessly.
+
 ## [0.5.10] - 2026-04-09
 
 ### 🛠 Build & Workflow Optimizations

@@ -5,6 +5,8 @@ A high-performance charting engine built with **Rust**, **Tauri**, and **Lightwe
 **<u>[installable wheels for Os are in wheels/ folder](wheels/)</u>**
 
 ![Static Chart Example](screenshots/static.png)
+![Multi Chart Layouts](screenshots/multi_charts.png)
+![Drawing Tools](screenshots/drawing_tools.png)
 
 ## 💎 Features
 
@@ -65,16 +67,21 @@ sudo pacman -S gtk3 webkit2gtk-4.1 libayatana-appindicator librsvg
 ```
 
 #### 📦 For Running Pre-built Wheels
-If you installed the pre-built wheel from PyPI or GitHub, you only need the **runtime** libraries:
+If you installed the pre-built wheel (from PyPI or GitHub), you only need the **runtime** libraries:
 
 **Ubuntu / Debian:**
 ```bash
-sudo apt update && sudo apt install -y libgtk-3-0 libwebkit2gtk-4.1-0
+sudo apt update && sudo apt install -y libgtk-3-0 libwebkit2gtk-4.1-0 libjavascriptcoregtk-4.1-0 libayatana-appindicator3-1 librsvg2-2
 ```
 
 **Fedora:**
 ```bash
-sudo dnf install gtk3 webkit2gtk4.1
+sudo dnf install gtk3 webkit2gtk4.1 libayatana-appindicator3 librsvg2
+```
+
+**Arch Linux:**
+```bash
+sudo pacman -S gtk3 webkit2gtk-4.1 libayatana-appindicator-gtk3 librsvg
 ```
 
 ### 🍎 macOS Dependencies
