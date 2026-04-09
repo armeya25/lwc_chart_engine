@@ -1,15 +1,13 @@
 import subprocess
 import os
 import json
-import uuid
 import polars as pl
 from . import chart_engine_lib
 import time
 import threading
 import logging
-import datetime
-import zoneinfo
 import atexit
+import base64
 
 # State for backend timezone (synced with Rust)
 _BACKEND_TZ = "UTC"
@@ -175,6 +173,22 @@ class Chart:
 
                 if msg.get("action") == "trade" and self.on_trade:
                     self.on_trade(msg.get("data"))
+                
+                if msg.get("action") == "screenshot":
+                    data = msg.get("data", {})
+                    b64_data = data.get("base64", "")
+                    filename = data.get("filename", "screenshot.png")
+                    
+                    if b64_data.startswith("data:image"):
+                        b64_data = b64_data.split(",")[1]
+                    
+                    try:
+                        with open(filename, "wb") as f:
+                            f.write(base64.b64decode(b64_data))
+                        print(f"🎬 Screenshot saved: {filename}")
+                    except Exception as e:
+                        logger.error(f"Failed to save screenshot: {e}")
+
             except Exception as e:
                 # print(f"DEBUG: Failed to parse line from Tauri: {line} | Error: {e}")
                 pass
@@ -254,9 +268,6 @@ class Chart:
     def set_legend_visibility(self, v):
         self._send_command({"action": "set_legend_visibility", "data": {"visible": v}})
 
-    def set_timeframe(self, tf):
-        self._send_command({"action": "set_timeframe", "data": tf})
-
     def update_trend_info(self, **kwargs):
         self._send_command({"action": "update_trend", "data": kwargs})
 
@@ -267,8 +278,8 @@ class Chart:
     def set_sync(self, enabled=False):
         self._send_command({"action": "set_sync", "data": {"enabled": enabled}})
     
-    def take_screenshot(self, chart_id="chart-0"):
-        self._send_command({"action": "take_screenshot", "chartId": chart_id})
+    def take_screenshot(self, filename=None, chart_id="chart-0"):
+        self._send_command({"action": "take_screenshot", "chartId": chart_id, "filename": filename})
     
     ################################################
     # --- Drawing & Markers (from DrawingTool) --- #

@@ -277,9 +277,6 @@ export const CommandHandlers = {
         const timeScale = { tickMarkFormatter: (time) => { const d = typeof time === 'number' ? new Date(time * 1000) : new Date(time); return isNaN(d) ? "" : d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric', timeZone: window.chartTimeZone }); } };
         window.charts.forEach(c => c.applyOptions({ localization, timeScale }));
     },
-    set_timeframe: (_targetChart, cmd) => {
-        // Timeframe display removed from status indicator
-    },
     hide_loading: () => {
         if (window.hideLoader) window.hideLoader();
     },
@@ -349,13 +346,22 @@ export const CommandHandlers = {
             panel.classList.remove('collapsed');
         }
     },
-    take_screenshot: (targetChart, _cmd, chartId) => {
+    take_screenshot: (targetChart, cmd, chartId) => {
         if (targetChart) {
             const canvas = targetChart.takeScreenshot();
-            const a = document.createElement('a');
-            a.href = canvas.toDataURL();
-            a.download = `chart_${chartId}_${new Date().toISOString()}.png`;
-            a.click();
+            const base64 = canvas.toDataURL('image/png');
+            // Emit to backend (Tauri or PyWebview)
+            const invoke = window.__TAURI__ ? window.__TAURI__.invoke : (window.pywebview ? window.pywebview.api.emit_to_backend : null);
+            if (invoke) {
+                invoke('emit_to_backend', { 
+                    action: 'screenshot', 
+                    data: { 
+                        base64, 
+                        filename: cmd.filename || `chart_${chartId}_${new Date().getTime()}.png`,
+                        chartId 
+                    } 
+                });
+            }
         }
     },
     // Aliases for Rust backend consistency

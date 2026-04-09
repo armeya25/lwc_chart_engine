@@ -15,6 +15,7 @@ pub struct Position {
     pub tp: Option<f64>,
     pub sl: Option<f64>,
     pub pnl: f64,
+    pub time: Option<i64>,
 }
 
 #[cfg_attr(feature = "python-bridge", pyclass)]
@@ -85,7 +86,7 @@ impl PaperTrader {
         commands
     }
 
-    pub fn execute(&mut self, side: String, qty: f64, entry_price: Option<f64>, tp: Option<f64>, sl: Option<f64>) -> Vec<ChartCommand> {
+    pub fn execute(&mut self, side: String, qty: f64, entry_price: Option<f64>, tp: Option<f64>, sl: Option<f64>, time: Option<i64>) -> Vec<ChartCommand> {
         let price = entry_price.unwrap_or(self.last_price);
         if price == 0.0 { return Vec::new(); }
 
@@ -97,6 +98,7 @@ impl PaperTrader {
             tp,
             sl,
             pnl: 0.0,
+            time,
         };
 
         self.positions.push(pos);
@@ -112,7 +114,7 @@ impl PaperTrader {
         let tp = data.get("tp").and_then(|v| v.as_f64());
         let sl = data.get("sl").and_then(|v| v.as_f64());
         
-        self.execute(side, qty, None, tp, sl)
+        self.execute(side, qty, None, tp, sl, None)
     }
 }
 
@@ -126,6 +128,7 @@ impl Position {
     #[getter] pub fn tp(&self) -> Option<f64> { self.tp }
     #[getter] pub fn sl(&self) -> Option<f64> { self.sl }
     #[getter] pub fn pnl(&self) -> f64 { self.pnl }
+    #[getter] pub fn time(&self) -> Option<i64> { self.time }
 }
 
 #[cfg(feature = "python-bridge")]
@@ -142,9 +145,9 @@ impl PaperTrader {
         self.update_price(price).iter().map(|c| serde_json::to_string(c).unwrap()).collect()
     }
 
-    #[pyo3(name = "execute", signature = (side, qty, price=None, tp=None, sl=None))]
-    pub fn py_execute(&mut self, side: String, qty: f64, price: Option<f64>, tp: Option<f64>, sl: Option<f64>) -> Vec<String> {
-        self.execute(side, qty, price, tp, sl).iter().map(|c| serde_json::to_string(c).unwrap()).collect()
+    #[pyo3(name = "execute", signature = (side, qty, price=None, tp=None, sl=None, time=None))]
+    pub fn py_execute(&mut self, side: String, qty: f64, price: Option<f64>, tp: Option<f64>, sl: Option<f64>, time: Option<i64>) -> Vec<String> {
+        self.execute(side, qty, price, tp, sl, time).iter().map(|c| serde_json::to_string(c).unwrap()).collect()
     }
 
     #[pyo3(name = "handle_callback")]

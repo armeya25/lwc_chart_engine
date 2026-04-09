@@ -1,32 +1,39 @@
+import os
 import time
 import datetime
 import polars as pl
 import numpy as np
+import threading
 from chart_engine import Chart
 
-def generate_sample_data(num_bars=100):
-    start = datetime.datetime.now() - datetime.timedelta(days=num_bars)
-    return pl.DataFrame({
-        "time": [start + datetime.timedelta(days=i) for i in range(num_bars)],
-        "open": np.cumsum(np.random.randn(num_bars)) + 100,
-        "high": np.cumsum(np.random.randn(num_bars)) + 105,
-        "low": np.cumsum(np.random.randn(num_bars)) + 95,
-        "close": np.cumsum(np.random.randn(num_bars)) + 100,
-    })
-
 def run_ui_demo():
-    # 1. Initialize with custom title
-    chart = Chart(title="State-of-the-art UI Customization")
+    # 1. Load Data
+    parquet_path = "data/1d.parquet"
+    if not os.path.exists(parquet_path):
+        print(f"Error: {parquet_path} not found.")
+        return
+        
+    df = pl.read_parquet(parquet_path)
+    df = df.tail(100)
+
+    # 2. Initialize and Show Chart
+    chart = Chart(title="Chart Engine v0.3.5 - SubChart Test")
+    #chart.show()  # Launch the Tauri window
     
-    df = generate_sample_data(200)
-    chart.series["main"].set_data(df)
+    # 3. Configure Layout and Series
+    subcharts = chart.set_layout("single")
+    ch1 = subcharts[0].create_candlestick_series(name="BTC/USD")
+    print(f"Series created: {ch1}")
     
+    # 4. Set Data
+    ch1.set_data(df)
+    print("✅ Data series set successfully. Window should be open.")
+    
+
     # 2. Set Watermark (Branding)
-    chart.set_watermark("testing watermark")
-    
+    chart.set_watermark("ANTIGRAVITY v0.5.5")
     # 3. Timezone Management
     chart.set_timezone("Asia/Kolkata")
-    
     # 4. Toggle UI Components
     print("Customizing UI components...")
     chart.enable_tooltip()          # Show floating price info on crosshair
@@ -36,17 +43,14 @@ def run_ui_demo():
     # 5. Set Crosshair Mode (Magnet mode for snapping to bars)
     chart.set_crosshair_mode(1) 
     
-    # 6. Change Legend / Data Context
-    chart.set_timeframe({"label": "1D", "value": 1440})
     
     # 7. Take an automated screenshot (Saved to project root)
     # We move this to a thread so it doesn't block the main UI loop
-    import threading
     def take_delayed_screenshot():
         time.sleep(3)  # Give time for the window to settle
         chart.show_notification("Auto-capturing UI snapshot...", "info")
         time.sleep(1)
-        chart.take_screenshot()
+        chart.take_screenshot(filename="ui_customization_snapshot.png")
         print("📸 UI snapshot saved to project root.")
 
     threading.Thread(target=take_delayed_screenshot, daemon=True).start()
