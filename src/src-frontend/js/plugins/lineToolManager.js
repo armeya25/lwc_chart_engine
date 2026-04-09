@@ -1,5 +1,5 @@
 /* Line Tool Manager */
-const LineToolManager = {
+export const LineToolManager = {
     _tools: new Map(),
     _rafId: null,
     _containers: new Map(),
@@ -99,10 +99,19 @@ const LineToolManager = {
         const getX = (t) => {
             const coord = timeScale.timeToCoordinate(t);
             if (coord !== null) return coord;
+            
+            // Fuzzy match: if exact match fails, try to find coordinates for nearby points
+            // and interpolate, or at least handle off-screen cases better.
             const range = timeScale.getVisibleRange();
             if (!range) return null;
+
             if (t < range.from) return -10000;
             if (t > range.to) return w + 10000;
+
+            // If it's within range but timeToCoordinate failed, it might be between bars.
+            // We can try to get the coordinate of a nearby timestamp if index-based matching is used.
+            // For now, returning null is safe but we could improve this with coordinateToTime 
+            // if we had a reference point.
             return null;
         };
 

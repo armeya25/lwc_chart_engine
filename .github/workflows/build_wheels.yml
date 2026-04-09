@@ -2,8 +2,12 @@ name: CI/CD Build & Publish
 
 on:
   push:
+    branches:
+      - main
     tags:
       - "v*"
+    paths-ignore:
+      - "wheels/**"
   workflow_dispatch:
 
 permissions:
@@ -41,14 +45,9 @@ jobs:
       - name: Build Frontend
         shell: bash
         run: |
-          cd src/src-frontend
-          mkdir -p dist
-          cat js/plugins/markerManager.js js/plugins/priceLineManager.js js/plugins/boxManager.js js/plugins/positionToolManager.js js/plugins/lineToolManager.js bandPlugin.js js/core.js js/ui.js js/commands.js > dist/app-bundle.js
-          npx esbuild dist/app-bundle.js --minify --outfile=dist/app.min.js
-          npx esbuild terminal.css --minify --outfile=dist/terminal.css
-          cp index.dist.html dist/index.html
-          cp lightweight-charts.js dist/lightweight-charts.js
-          rm dist/app-bundle.js
+          cd src
+          npm run build:frontend
+          cd ..
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -91,7 +90,7 @@ jobs:
           fi
 
       - name: Build Wheel
-        run: maturin build --release --features python-bridge --out wheels --manylinux 2_39
+        run: maturin build --release --features python-bridge --out dist --manylinux 2_39
 
       - name: Compress Internal Library (UPX)
         shell: bash

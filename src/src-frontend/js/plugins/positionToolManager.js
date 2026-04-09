@@ -1,5 +1,5 @@
 /* Position Tool Manager */
-const PositionToolManager = {
+export const PositionToolManager = {
     _positions: new Map(),
     _rafId: null,
     _containers: new Map(),

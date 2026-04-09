@@ -19,21 +19,23 @@ We provide scripts to automate the build and installation process. Choose the on
 ### 🛠 Development Build
 For a fast development cycle (installs in your current environment):
 ```bash
-./dev.sh
+./helpers/dev.sh
 ```
 
 ### 📦 Production Build
 To generate a distribution-ready wheel:
 ```bash
-./create-wheels.sh
+./helpers/create-wheels.sh
 ```
 
-## 📊 Usage & Examples
-
-Detailed usage examples can be found in the [examples/](examples/) directory:
-
-- [static_charts.py](examples/static_charts.py): Basic usage with Polars DataFrames.
-- [live_chart_emulation.py](examples/live_chart_emulation.py): Real-time data streaming simulation.
+### 📊 Examples
+Dive into the `examples/` directory to see the full capabilities:
+- **[static_charts.py](file:///home/armeya/Documents/lwc_chart_engine/examples/static_charts.py)**: Basic rendering of historical OHLC data.
+- **[live_chart_emulation.py](file:///home/armeya/Documents/lwc_chart_engine/examples/live_chart_emulation.py)**: Real-time data streaming and auto-scrolling.
+- **[drawing_tools.py](file:///home/armeya/Documents/lwc_chart_engine/examples/drawing_tools.py)**: Programmatic Trendlines, Rays, Fibonacci, and Boxes.
+- **[multi_chart_layouts.py](file:///home/armeya/Documents/lwc_chart_engine/examples/multi_chart_layouts.py)**: Building complex workspaces with 2, 3, or 4 subcharts.
+- **[paper_trading.py](file:///home/armeya/Documents/lwc_chart_engine/examples/paper_trading.py)**: Backend programmatic execution and TP/SL visual management.
+- **[ui_customization.py](file:///home/armeya/Documents/lwc_chart_engine/examples/ui_customization.py)**: Full control over tooltips, watermarks, timezones, and legends.
 
 ## 📚 Documentation
 

@@ -1,5 +1,5 @@
 /* Marker Manager */
-const MarkerManager = {
+export const MarkerManager = {
     _markers: new Map(), // (chartId + seriesId) -> array of marker objects
 
     _getKey: function(chartId, seriesId) {

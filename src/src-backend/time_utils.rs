@@ -39,21 +39,51 @@ pub fn py_ensure_timestamp(val: &Bound<'_, PyAny>) -> PyResult<Option<i64>> {
         return Ok(None);
     }
 
-    // Try calling .timestamp() directly (works for datetime objects)
+    let type_name = val.get_type().qualname()?.to_string();
+
+    // Special handling for datetime objects to ensure UTC alignment
+    if type_name == "datetime" {
+        let has_tzinfo = val.getattr("tzinfo")?.is_none() == false;
+        if has_tzinfo {
+             // If already has tzinfo, .timestamp() is reliable
+             if let Ok(ts) = val.call_method0("timestamp")?.extract::<f64>() {
+                 return Ok(Some(ts as i64));
+             }
+        } else {
+             // Naive datetime: we MUST assume UTC to match the polars processing logic
+             // Convert naive to UTC by adding UTC tzinfo
+             let dt_module = val.py().import("datetime")?;
+             let timezone_utc = dt_module.getattr("timezone")?.getattr("utc")?;
+             
+             let kwargs = pyo3::types::PyDict::new(val.py());
+             kwargs.set_item("tzinfo", timezone_utc)?;
+             
+             let dt_utc = val.call_method("replace", (), Some(&kwargs))?;
+             if let Ok(ts) = dt_utc.call_method0("timestamp")?.extract::<f64>() {
+                 return Ok(Some(ts as i64));
+             }
+        }
+    }
+
+    // Try calling .timestamp() directly as fallback (works for some other types)
     if let Ok(ts_res) = val.call_method0("timestamp") {
         if let Ok(ts) = ts_res.extract::<f64>() {
             return Ok(Some(ts as i64));
         }
     }
 
-    // Fallback for date objects or other types that might need conversion
-    let type_name = val.get_type().qualname()?.to_string();
     if type_name == "date" {
          let dt_module = val.py().import("datetime")?;
          let datetime_class = dt_module.getattr("datetime")?;
          let time_class = dt_module.getattr("time")?;
          let dt = datetime_class.call_method1("combine", (val, time_class.call0()?))?;
-         let ts = dt.call_method0("timestamp")?.extract::<f64>()?;
+         
+         let timezone_utc = dt_module.getattr("timezone")?.getattr("utc")?;
+         let kwargs = pyo3::types::PyDict::new_bound(val.py());
+         kwargs.set_item("tzinfo", timezone_utc)?;
+         
+         let dt_utc = dt.call_method("replace", (), Some(&kwargs))?;
+         let ts = dt_utc.call_method0("timestamp")?.extract::<f64>()?;
          return Ok(Some(ts as i64));
     }
 

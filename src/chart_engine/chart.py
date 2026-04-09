@@ -108,7 +108,8 @@ class Series:
 
     def add_marker(self, **kwargs):
         """Convenience method for adding a marker to this specific series."""
-        return self.chart.add_marker(self.series_id, kwargs.get('time'), **kwargs)
+        time_val = kwargs.pop('time', None)
+        return self.chart.add_marker(self.series_id, time_val, **kwargs)
 
 class Chart:
     _instance = None
@@ -156,17 +157,27 @@ class Chart:
             line = _TAURI_PROCESS.stdout.readline()
             if not line: break
             try:
+                if not line: break
+                line = line.strip()
+                # Diagnostic: Always print the line if we are troubleshooting
+                # print(f"DEBUG: Tauri -> {line}")
+                
                 msg = json.loads(line)
                 if msg.get("action") == "log":
                     level_name = msg.get("level", "INFO").upper()
                     if level_name == "WARN": level_name = "WARNING"
                     py_level = getattr(logging, level_name, logging.INFO)
                     logger.log(py_level, f"[rust:{msg.get('target', 'engine')}] {msg.get('message', '')}")
+                    # Force print errors to console for visibility
+                    if level_name in ["ERROR", "CRITICAL"]:
+                        print(f"❌ [Chart Engine Error]: {msg.get('message', '')}")
                     continue
 
                 if msg.get("action") == "trade" and self.on_trade:
                     self.on_trade(msg.get("data"))
-            except: pass
+            except Exception as e:
+                # print(f"DEBUG: Failed to parse line from Tauri: {line} | Error: {e}")
+                pass
 
     def set_on_trade(self, callback):
         self.on_trade = callback
@@ -322,11 +333,6 @@ class Chart:
         """Update market price and check TP/SL for all positions in Rust"""
         cmds = self._rust_trader.update_price(price)
         for c in cmds: self._send_command(json.loads(c))
-
-    def __trader_sync(self):
-        """Sync local positions with the UI table (now handled in Rust)"""
-        # This is mostly for backward compatibility if called directly
-        self.update_positions(self.positions)
 
     def trader_execute(self, side, qty, price=None, tp=None, sl=None, series=None):
         """Programmatically execute a trade in the Rust backend"""

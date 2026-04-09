@@ -35,7 +35,7 @@ window.getSeriesForChart = function (chartId) {
 };
 
 // --- Sync Manager ---
-const SyncManager = {
+export const SyncManager = {
     enabled: false,
     isSyncing: false,
     charts: [],

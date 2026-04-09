@@ -1,5 +1,5 @@
 /* Box/Rectangle Overlay Manager */
-const BoxManager = {
+export const BoxManager = {
     _boxes: new Map(),
     _rafId: null,
     _containers: new Map(), // chartId -> container
@@ -145,16 +145,16 @@ const BoxManager = {
             if (t == null) return null;
             let coord = timeScale.timeToCoordinate(t);
             if (coord !== null) return coord;
-            
+
             // FUZZY MATCH: If exact time fails, check if it's out of range
             const range = timeScale.getVisibleRange();
             if (!range) {
-                 // Chart might be early in loading
-                 return null;
+                // Chart might be early in loading
+                return null;
             }
             if (t < range.from) return -10000;
             if (t > range.to) return (container ? container.clientWidth : 1000) + 10000;
-            
+
             // If it's in range but null, it's between bars. 
             // Try to approximate by finding the coordinate of the closest bar.
             return null;
@@ -169,7 +169,7 @@ const BoxManager = {
 
         if (x1 === null || y1 === null) {
             // window.bridgeLog(`BoxManager: Box [${box.id}] hidden - X1=${x1} Y1=${y1}`);
-            box.element.style.display = 'none'; 
+            box.element.style.display = 'none';
             return;
         }
 

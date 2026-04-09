@@ -2,7 +2,7 @@
  * UI Management (Notifications, Legend, Toolbar, TrendInfo)
  */
 
-function showNotification(message, type = 'info', duration = 3000, textColor = null) {
+export function showNotification(message, type = 'info', duration = 3000, textColor = null) {
     let container = document.getElementById('notification-container');
     if (!container) {
         container = document.createElement('div');
@@ -31,12 +31,12 @@ function showNotification(message, type = 'info', duration = 3000, textColor = n
 
 // Legend reference is now fetched dynamically to avoid null references if DOM isn't ready
 
-function toggleLegend() {
+export function toggleLegend() {
     const el = document.getElementById('legend');
     if (el) el.classList.toggle('collapsed');
 }
 
-function addLegendItem(id, name, color) {
+export function addLegendItem(id, name, color) {
     const legendContent = document.getElementById('legend-content');
     if (!legendContent) return;
     
@@ -73,16 +73,16 @@ function addLegendItem(id, name, color) {
     });
 }
 
-function toggleTrendInfo() {
+export function toggleTrendInfo() {
     const el = document.getElementById('trend-info');
     if (el) el.classList.toggle('collapsed');
 }
 
-function scrollToRealTime() {
+export function scrollToRealTime() {
     window.charts.forEach(c => c.timeScale().scrollToRealTime());
 }
 
-function setupToolbar() {
+export function setupToolbar() {
     const toolbar = document.getElementById('toolbar');
     if (!toolbar) return;
     toolbar.innerHTML = `
@@ -100,14 +100,14 @@ function setupToolbar() {
     document.addEventListener('click', (e) => { if (!toolbar.contains(e.target)) { menu.classList.remove('visible'); trigger.classList.remove('active'); }});
 }
 
-function changeLayout(type) {
+export function changeLayout(type) {
     createLayout(type);
     const menu = document.getElementById('layout-menu'), trigger = document.getElementById('layout-trigger');
     if (menu) menu.classList.remove('visible');
     if (trigger) trigger.classList.remove('active');
 }
 
-function createLayout(rawType) {
+export function createLayout(rawType) {
     const type = String(rawType || 'single').trim().toLowerCase().replace(/['"]+$/g, '').replace(/^['"]+/g, '');
     window.currentLayout = type;
     const container = document.getElementById('chart-container');
@@ -137,7 +137,7 @@ function createLayout(rawType) {
 }
 
 // Function to initialize all charts initially
-function initCharts() {
+export function initCharts() {
     const container = document.getElementById('chart-container');
     if (!container) return;
     
@@ -236,7 +236,7 @@ function initCharts() {
 
 window.initCharts = initCharts;
 
-window.showNotification = showNotification; window.toggleLegend = toggleLegend; window.addLegendItem = addLegendItem; window.toggleTrendInfo = toggleTrendInfo; window.scrollToRealTime = scrollToRealTime; window.setupToolbar = setupToolbar; window.changeLayout = changeLayout; window.createLayout = createLayout;
+// window.showNotification = showNotification; window.toggleLegend = toggleLegend; window.addLegendItem = addLegendItem; window.toggleTrendInfo = toggleTrendInfo; window.scrollToRealTime = scrollToRealTime; window.setupToolbar = setupToolbar; window.changeLayout = changeLayout; window.createLayout = createLayout;
 
 // --- Trading Dashboard Logic ---
 window.positionsUserHidden = true;
@@ -301,7 +301,7 @@ window.executeTrade = function(side) {
     }
 };
 
-window.updatePositionsUI = function(positions) {
+export function updatePositionsUI(positions) {
     const panel = document.getElementById('positions-panel');
     const body = document.getElementById('positions-body');
     if (!panel || !body) return;

@@ -1,5 +1,5 @@
 /* Price Line Manager */
-const PriceLineManager = {
+export const PriceLineManager = {
     _lines: new Map(), // lineId -> { seriesId, lineObj }
 
     create: function (seriesId, lineId, options) {

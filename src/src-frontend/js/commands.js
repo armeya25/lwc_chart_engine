@@ -2,7 +2,7 @@
  * Command Dispatcher & Handlers
  */
 
-const CommandQueue = {
+export const CommandQueue = {
     queue: [],
     isProcessing: false,
     BUDGET_MS: 8,
@@ -56,7 +56,7 @@ const CommandQueue = {
 const getSId = (cmd) => cmd.id || cmd.seriesId || cmd.series_id;
 
 window.isReady = false;
-window.hideLoader = function() {
+export function hideLoader() {
     const el = document.getElementById('loading');
     if (el) {
         el.style.opacity = '0';
@@ -64,12 +64,12 @@ window.hideLoader = function() {
     }
 };
 
-window.handleCommand = function (cmd) {
+export function handleCommand(cmd) {
     if (typeof cmd === 'string') cmd = JSON.parse(cmd);
     CommandQueue.push(cmd);
 };
 
-const CommandHandlers = {
+export const CommandHandlers = {
     configure_chart: (targetChart, cmd) => { if (targetChart) targetChart.applyOptions(cmd.data); },
     set_layout: (_targetChart, cmd) => { 
         const type = cmd.layout || cmd.data?.type || 'single';
@@ -350,44 +350,8 @@ const CommandHandlers = {
 };
 
 CommandQueue.processCommandSync = CommandQueue.processCommandSync.bind(CommandQueue);
-window.CommandHandlers = CommandHandlers;
+// window.CommandHandlers = CommandHandlers; 
+// window.handleCommand = handleCommand;
+// window.hideLoader = hideLoader;
 
-// Final Initialization
-try {
-    window.initCharts();
-    window.setupToolbar();
-    const loadingText = document.querySelector('.loading-text');
-    if (loadingText) loadingText.innerText = "Waiting for Backend...";
-    
-    // Notify Backend (Hybrid support for Tauri)
-    if (window.__TAURI__) {
-        window.isReady = true;
-        const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.invoke;
-        if (invoke) {
-            invoke('frontend_ready')
-                .then(() => { if (window.hideLoader) window.hideLoader(); })
-                .catch(e => console.error("Frontend: Tauri mark_ready failed", e));
-        }
-        const listen = window.__TAURI__.event ? window.__TAURI__.event.listen : window.__TAURI__.listen;
-        if (listen) {
-            listen('command', (event) => {
-                window.handleCommand(event.payload);
-            }).catch(e => console.error("Frontend: listen failed", e));
-        }
-    } else if (window.pywebview && window.pywebview.api) {
-        window.isReady = true;
-        setTimeout(() => {
-            window.pywebview.api.mark_ready();
-        }, 100);
-    } else {
-        window.addEventListener('pywebviewready', () => {
-            window.isReady = true;
-            setTimeout(() => {
-                window.pywebview.api.mark_ready()
-                    .catch(e => console.error("Frontend: mark_ready failed", e));
-            }, 100);
-        });
-    }
-} catch (e) {
-    console.error("Init error:", e);
-}
+// Final Initialization moved to entry.js
