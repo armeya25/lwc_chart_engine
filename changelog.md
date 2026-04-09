@@ -1,6 +1,19 @@
 # Changelog
 
 All notable changes to the **LWC Chart Engine** will be documented in this file.
+ 
+## [0.4.0] - 2026-04-09
+
+### 🚀 Core Improvements / Features
+- **Summary**: Added native support for `manylinux` platform tags.
+- **Details**: Resolved PyPI `linux_x86_64` tag rejection by implementing `manylinux_2_39` (local) and `auto` (CI) compatibility modes in `maturin`.
+
+### 🛠 Build & Workflow Optimizations
+- **Summary**: Global Version Synchronization.
+- **Details**: Synchronized version `0.4.0` across `pyproject.toml`, `src/src-tauri/Cargo.toml`, and `create-wheels.sh`.
+- **Summary**: Enhanced CI/CD for PyPI.
+- **Details**: Updated GitHub Actions to automatically detect and apply the correct `manylinux` tag for binary distribution.
+
 
 ## [0.3.10] - 2026-04-08
 

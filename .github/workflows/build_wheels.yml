@@ -91,7 +91,7 @@ jobs:
           fi
 
       - name: Build Wheel
-        run: maturin build --release --features python-bridge --out dist --manylinux off
+        run: maturin build --release --features python-bridge --out wheels --manylinux 2_39
 
       - name: Compress Internal Library (UPX)
         shell: bash
@@ -128,7 +128,17 @@ jobs:
               with open(record_path, 'w') as f:
                   f.write('\n'.join(lines) + '\n')
           "
-            python -c "import zipfile, os; zf = zipfile.ZipFile('$WHEEL_FILE.new', 'w', zipfile.ZIP_DEFLATED, compresslevel=9); [zf.write(os.path.join(r, f), os.path.relpath(os.path.join(r, f), 'tmp_wheel')) for r, d, files in os.walk('tmp_wheel') for f in files]; zf.close()"
+            python -c "import zipfile, os;
+            with zipfile.ZipFile('$WHEEL_FILE.new', 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
+                for root, dirs, files in os.walk('tmp_wheel'):
+                    for file in files:
+                        full_path = os.path.join(root, file)
+                        rel_path = os.path.relpath(full_path, 'tmp_wheel')
+                        st = os.stat(full_path)
+                        zinfo = zipfile.ZipInfo.from_file(full_path, rel_path)
+                        zinfo.external_attr = (st.st_mode & 0xFFFF) << 16
+                        with open(full_path, 'rb') as f:
+                            zf.writestr(zinfo, f.read())"
             mv "$WHEEL_FILE.new" "$WHEEL_FILE"
             rm -rf tmp_wheel
           fi
