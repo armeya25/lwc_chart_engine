@@ -6,7 +6,7 @@ set -e
 # Change to the project root directory
 cd "$(dirname "$0")/.."
 
-VERSION="0.5.10"
+VERSION="0.6.0"
 PACKAGE_NAME="chart_engine"
 SOURCE_DIR="src/chart_engine"
 
@@ -59,7 +59,6 @@ export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
 
 # First, ensure binaries are built so we can compress them before packaging
 echo "📂 Compiling and preparing binaries for packaging..."
-export MATURIN_REPAIR_OPTIONS="--exclude libwebkit2gtk-4.0.so.37 --exclude libwebkit2gtk-4.1.so.0 --exclude libgtk-3.so.0 --exclude libjavascriptcoregtk-4.0.so.18 --exclude libjavascriptcoregtk-4.1.so.0 --exclude libicudata.so.74 --exclude libicui18n.so.74 --exclude libicuuc.so.74 --exclude libcairo.so.2 --exclude libpango-1.0.so.0 --exclude libatk-1.0.so.0 --exclude libgstreamer-1.0.so.0 --exclude libgdk-3.so.0 --exclude libgdk_pixbuf-2.0.so.0 --exclude libgio-2.0.so.0 --exclude libglib-2.0.so.0 --exclude libgobject-2.0.so.0"
 echo "Current Directory: $(pwd)"
 ls -l src/src-tauri/Cargo.toml || echo "❌ Error: Cannot find Cargo.toml at $(pwd)/src/src-tauri/Cargo.toml"
 cargo build --release --manifest-path src/src-tauri/Cargo.toml --features python-bridge
@@ -87,13 +86,13 @@ fi
 
 # Build the wheel (.whl) for distribution
 echo "📦 Generating production wheel (lightweight)..."
-mkdir -p dist
+mkdir -p wheels
 rm -f src/chart_engine/chart_engine_lib.so # Never include manually copied libs in the wheel
-maturin build --release --features python-bridge --out dist --manylinux 2_39
+maturin build --release --strip --features python-bridge --out wheels --compatibility manylinux_2_39 --auditwheel skip
 
 # High Compression Phase
 echo "🗜 Starting High Compression phase for the .whl..."
-WHEEL_FILE=$(ls dist/*.whl | head -n 1)
+WHEEL_FILE=$(ls wheels/*.whl | head -n 1)
 if [ -f "$WHEEL_FILE" ]; then
     TMP_DIR=$(mktemp -d)
     echo "📂 Unpacking wheel to $TMP_DIR..."
@@ -135,7 +134,7 @@ if record_path:
     
     echo "📦 Repacking highly-compressed wheel..."
     WHEEL_NAME=$(basename "$WHEEL_FILE")
-    WHEEL_OUT_DIR=$(realpath dist)
+    WHEEL_OUT_DIR=$(realpath wheels)
     python3 -c "
 import zipfile, os
 with zipfile.ZipFile('$WHEEL_OUT_DIR/$WHEEL_NAME.new', 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
@@ -152,7 +151,7 @@ with zipfile.ZipFile('$WHEEL_OUT_DIR/$WHEEL_NAME.new', 'w', zipfile.ZIP_DEFLATED
 "
     mv "$WHEEL_OUT_DIR/$WHEEL_NAME.new" "$WHEEL_FILE"
     rm -rf "$TMP_DIR"
-    echo "✅ Highly-compressed wheel ready in dist/"
+    echo "✅ Highly-compressed wheel ready in wheels/"
 fi
 
 # Final Cleanup: Remove staging binaries
