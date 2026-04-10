@@ -82,6 +82,19 @@ pub fn run() {
     let _ = log::set_logger(&LOGGER)
         .map(|()| log::set_max_level(log::LevelFilter::Debug));
     
+    // Set a custom panic hook to report crashes to stderr
+    std::panic::set_hook(Box::new(|panic_info| {
+        let message = if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
+            s.to_string()
+        } else if let Some(s) = panic_info.payload().downcast_ref::<String>() {
+            s.clone()
+        } else {
+            "Unknown panic".to_string()
+        };
+        let location = panic_info.location().map(|l| format!(" at {}:{}", l.file(), l.line())).unwrap_or_default();
+        eprintln!("💥 [Chart Engine Backend Panic]: {}{} ", message, location);
+    }));
+
     tauri::Builder::default()
         .setup(|app| {
             log::debug!("Tauri setup started");

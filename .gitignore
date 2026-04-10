@@ -34,7 +34,6 @@ chart_engine/src-tauri/icons/128x128.png
 chart_engine/src-tauri/icons/128x128@2x.png
 
 # IDEs & Editors
-.vscode/
 .idea/
 *.swp
 *.swo

@@ -8,6 +8,10 @@ import threading
 import logging
 import atexit
 import base64
+import faulthandler
+
+# Enable faulthandler to get stack traces on native crashes (SIGSEGV, etc.)
+faulthandler.enable()
 
 # State for backend timezone (synced with Rust)
 _BACKEND_TZ = "UTC"
@@ -109,6 +113,38 @@ class Series:
         time_val = kwargs.pop('time', None)
         return self.chart.add_marker(self.series_id, time_val, **kwargs)
 
+    def add_band(self, df, color="rgba(31, 150, 243, 0.2)"):
+        """
+        Adds a Band (Cloud) indicator to this series using the Band Plugin.
+        Requires a DataFrame with 'time', 'top', and 'bottom' columns.
+        """
+        if df is None or df.is_empty(): return
+        
+        # Process timestamps (handles renames like date -> time)
+        # print(f"DEBUG: Before processing: {df.columns}")
+        df = _process_polars_data(df)
+        # print(f"DEBUG: After processing: {df.columns}")
+        
+        # Now check if we have the required columns for the band plugin
+        required = {"time", "top", "bottom"}
+        if not required.issubset(set(df.columns)):
+            # Fallback: help the user by renaming if the backend missed it for some reason
+            if "date" in df.columns and "time" not in df.columns:
+                df = df.rename({"date": "time"})
+            
+            if not required.issubset(set(df.columns)):
+                raise ValueError(f"Processed DataFrame must contain columns: {required}. Found: {df.columns}")
+        
+        # Emit command to frontend
+        data_json = json.dumps(df.to_dicts(), cls=DateTimeEncoder)
+        self.chart._send_command({
+            "action": "create_band_plugin",
+            "seriesId": self.series_id,
+            "chartId": self.chart_id,
+            "color": color,
+            "data": json.loads(data_json)
+        })
+
 class Chart:
     _instance = None
     def __new__(cls, *args, **kwargs):
@@ -133,8 +169,11 @@ class Chart:
         global _TAURI_PROCESS, _READY_EVENT
         if _TAURI_PROCESS is None:
             bin_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "chart_engine")
-            _TAURI_PROCESS = subprocess.Popen([bin_path], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, bufsize=1)
+            _TAURI_PROCESS = subprocess.Popen([bin_path], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1)
             
+            # Start background listener for stderr
+            threading.Thread(target=self.__consume_stderr, daemon=True).start()
+
             # Synchronous wait for ready
             for line in _TAURI_PROCESS.stdout:
                 if "__READY__" in line: break
@@ -189,9 +228,21 @@ class Chart:
                     except Exception as e:
                         logger.error(f"Failed to save screenshot: {e}")
 
+            except json.JSONDecodeError as e:
+                # Silently ignore noise, but log real issues if they look like JSON
+                if line and (line.startswith('{') or line.startswith('[')):
+                    logger.debug(f"Failed to parse line from Tauri: {line} | Error: {e}")
             except Exception as e:
-                # print(f"DEBUG: Failed to parse line from Tauri: {line} | Error: {e}")
-                pass
+                logger.error(f"Error in UI listener thread: {e}")
+
+    def __consume_stderr(self):
+        global _TAURI_PROCESS
+        while _TAURI_PROCESS and _TAURI_PROCESS.poll() is None:
+            line = _TAURI_PROCESS.stderr.readline()
+            if not line: break
+            line = line.strip()
+            if line:
+                print(f"⚠️ [Chart Engine Backend]: {line}")
 
     def set_on_trade(self, callback):
         self.on_trade = callback

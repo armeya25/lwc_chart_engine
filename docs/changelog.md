@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.6.3] - 2026-04-10
+
+### 🛠 Build & Workflow Optimizations
+- **Summary**: Full Robustness & Portability Build.
+- **Details**: Switched to a "Full Robustness" build strategy by removing both `--strip` and `--auditwheel skip`. The resulting wheels (~100MB) are fully self-contained with all system dependencies bundled (GTK/WebKit) and include full debug symbols for line-numbered tracebacks.
+
+### ⚙ Internal Refactoring
+- **Summary**: Global Version Synchronization.
+- **Details**: Unified project version `0.6.3` across `pyproject.toml`, `src/src-tauri/Cargo.toml`, and all build helper scripts.
+
+## [0.6.2] - 2026-04-10
+
+### 🚀 Core Improvements / Features
+- **Summary**: Enhanced Native Crash Diagnostics.
+- **Details**: Integrated `faulthandler` into the Python bridge to capture and report C-level stack traces during native crashes. Added a custom Rust panic hook to provide precise line-number reporting for backend failures.
+
+### 🛠 Build & Workflow Optimizations
+- **Summary**: Robust Binary Distribution & Debugging.
+- **Details**: Removed `--auditwheel skip` and `--strip` flags from development and production build scripts to ensure dependency safety and preserve debug symbols.
+- **Summary**: Binary Integrity Protection.
+- **Details**: Disabled UPX compression for shared libraries (`.so` files) to prevent potential binary corruption and preserve traceback reliability.
+
+### 🎯 UI & API Enhancements
+- **Summary**: Improved Backend Observability.
+- **Details**: Implemented real-time `stderr` mirroring from the Tauri background process directly to the Python console, surfacing hidden GTK/WebKit initialization errors.
+
+### ⚙ Internal Refactoring
+- **Summary**: Global Version Synchronization.
+- **Details**: Unified project version `0.6.2` across `pyproject.toml`, `src/src-tauri/Cargo.toml`, and all build helper scripts.
+
 ## [0.6.1] - 2026-04-09
 
 ### 🛠 Build & Workflow Optimizations

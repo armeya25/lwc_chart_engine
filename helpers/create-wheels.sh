@@ -88,7 +88,7 @@ fi
 echo "📦 Generating production wheel (lightweight)..."
 mkdir -p wheels
 rm -f src/chart_engine/chart_engine_lib.so # Never include manually copied libs in the wheel
-maturin build --release --strip --features python-bridge --out wheels --compatibility manylinux_2_39 --auditwheel skip
+maturin build --release --features python-bridge --out wheels --compatibility manylinux_2_39
 
 # High Compression Phase
 echo "🗜 Starting High Compression phase for the .whl..."
@@ -103,8 +103,8 @@ if [ -f "$WHEEL_FILE" ]; then
     find "$TMP_DIR" -type f -name "chart_engine" -exec chmod +x {} +
 
     echo "⚡ High-compressing internal binaries (UPX)..."
-    # Use -type f to skip directories and --force just in case. Add || true to prevent build failure.
-    find "$TMP_DIR" -type f -name "*.so" -exec ./upx --best --lzma --force {} + || echo "⚠️ Internal UPX skipped/failed for .so"
+    # Skip UPX for .so files to avoid corruption and preserve symbols for now
+    # find "$TMP_DIR" -type f -name "*.so" -exec ./upx --best --lzma --force {} + || echo "⚠️ Internal UPX skipped/failed for .so"
     find "$TMP_DIR" -type f -name "chart_engine" -exec ./upx --best --lzma --force {} + || echo "⚠️ Internal UPX skipped/failed for binary"
     
     echo "✍ Updating RECORD file hashes and sizes..."

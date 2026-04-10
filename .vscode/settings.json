@@ -1,0 +1,7 @@
+{
+    "editor.formatOnSave": false,
+    "rust-analyzer.rustfmt.extraArgs": [],
+    "[rust]": {
+        "editor.formatOnSave": false
+    }
+}

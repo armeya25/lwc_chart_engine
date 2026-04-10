@@ -15,9 +15,9 @@ def test_chart():
         
     df = pl.read_parquet(parquet_path)
     df = df.tail(100)
-
+    #df = df.rename({"date":"time"})
     # 2. Initialize and Show Chart
-    chart = Chart(title="Chart Engine v0.3.5 - SubChart Test")
+    chart = Chart(title="Chart Engine v0.6.3 - SubChart Test")
     #chart.show()  # Launch the Tauri window
     
     # 3. Configure Layout and Series

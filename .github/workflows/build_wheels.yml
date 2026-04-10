@@ -90,7 +90,7 @@ jobs:
           fi
 
       - name: Build Wheel
-        run: maturin build --release --strip --features python-bridge --out dist --compatibility manylinux_2_39 --auditwheel skip
+        run: maturin build --release --features python-bridge --out dist --compatibility manylinux_2_39
 
       - name: Compress Internal Library (UPX)
         shell: bash
@@ -104,8 +104,8 @@ jobs:
             # Restoring executable permissions before compression
             find tmp_wheel -type f \( -name "*.so" -o -name "*.pyd" -o -name "chart_engine" \) -exec chmod +x {} +
             
-            # Find and compress shared libraries and main binary
-            find tmp_wheel -type f \( -name "*.so" -o -name "*.pyd" -o -name "chart_engine" \) -exec upx --best --lzma --force {} + || true
+            # Find and compress only the main binary (skip .so/.pyd for stability and tracebacks)
+            find tmp_wheel -type f -name "chart_engine" -exec upx --best --lzma --force {} + || true
             
             # Update RECORD file (Python logic)
             python3 -c "
