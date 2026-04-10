@@ -16,6 +16,47 @@
 </head>
 
 <body>
+    <div id="titlebar" data-tauri-drag-region>
+        <div class="titlebar-left" data-tauri-drag-region>
+            <div class="app-icon">📈</div>
+            <div class="app-title" data-tauri-drag-region>Chart Terminal</div>
+            
+            <div class="titlebar-menu-container">
+                <div class="titlebar-menu-trigger" id="view-menu-trigger">View <span style="font-size: 8px; opacity: 0.6; margin-left: 2px;">▼</span></div>
+                <div class="titlebar-dropdown" id="view-menu-dropdown">
+                    <div class="menu-item has-submenu">
+                        Layouts <span class="submenu-arrow">▶</span>
+                        <div class="submenu">
+                            <div class="menu-item" onclick="changeLayout('single')"><div class="layout-preview p-single"><div></div></div>Single Chart</div>
+                            <div class="menu-item" onclick="changeLayout('2x1')"><div class="layout-preview p-2x1"><div></div><div></div></div>2x1 Vertical</div>
+                            <div class="menu-item" onclick="changeLayout('1x2')"><div class="layout-preview p-1x2"><div></div><div></div></div>1x2 Horizontal</div>
+                            <div class="menu-item" onclick="changeLayout('1p2')"><div class="layout-preview p-1p2"><div></div><div></div><div></div></div>1 Top + 2 Bottom</div>
+                            <div class="menu-item" onclick="changeLayout('2x2')"><div class="layout-preview p-2x2"><div></div><div></div><div></div><div></div></div>2x2 Grid</div>
+                        </div>
+                    </div>
+                    <div class="separator"></div>
+                    <div class="menu-item" onclick="togglePanel('legend')">Legend <span class="menu-shortcut">L</span></div>
+                    <div class="menu-item" onclick="togglePanel('trade-panel')">Execution <span class="menu-shortcut">E</span></div>
+                    <div class="menu-item" onclick="togglePanel('positions-panel')">Positions <span class="menu-shortcut">P</span></div>
+                    <div class="menu-item" onclick="togglePanel('trend-info')">Trend Info <span class="menu-shortcut">I</span></div>
+                    <div class="separator"></div>
+                    <div class="menu-item" onclick="scrollToRealTime()">Reset Scale <span class="menu-shortcut">R</span></div>
+                </div>
+            </div>
+        </div>
+        <div class="titlebar-right">
+            <div class="titlebar-button" id="titlebar-minimize">
+                <svg width="12" height="12" viewBox="0 0 24 24"><path fill="currentColor" d="M19 13H5v-2h14v2z"/></svg>
+            </div>
+            <div class="titlebar-button" id="titlebar-maximize">
+                <svg width="12" height="12" viewBox="0 0 24 24"><path fill="currentColor" d="M4 4h16v16H4V4zm2 4v10h12V8H6z"/></svg>
+            </div>
+            <div class="titlebar-button close" id="titlebar-close">
+                <svg width="12" height="12" viewBox="0 0 24 24"><path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+            </div>
+        </div>
+    </div>
+
     <div id="loading">
         <div class="loader-spinner"></div>
         <div class="loading-text">Initializing Terminal</div>
@@ -85,25 +126,46 @@
 
         <div id="positions-panel" class="hidden">
             <div id="positions-header">
-                <span>Positions</span>
+                <div class="trading-tabs">
+                    <span id="tab-active" class="trading-tab active">Active</span>
+                    <span id="tab-history" class="trading-tab">History</span>
+                </div>
+                <div id="performance-summary">
+                    <span id="total-pnl" class="pnl-neutral">P/L: 0.00</span>
+                    <span id="win-rate">WR: 0%</span>
+                </div>
             </div>
-            <div id="positions-content">
-                <table id="positions-table">
-                    <thead>
-                        <tr>
-                            <th>Side</th>
-                            <th>Qty</th>
-                            <th>Entry</th>
-                            <th>Price</th>
-                            <th>TP</th>
-                            <th>SL</th>
-                            <th>P&L</th>
-                        </tr>
-                    </thead>
-                    <tbody id="positions-body">
-                        <!-- Positions will appear here -->
-                    </tbody>
-                </table>
+            <div id="positions-container">
+                <div id="active-content">
+                    <table id="positions-table">
+                        <thead>
+                            <tr>
+                                <th>Side</th>
+                                <th>Qty</th>
+                                <th>Entry</th>
+                                <th>Price</th>
+                                <th>TP</th>
+                                <th>SL</th>
+                                <th>P&L</th>
+                            </tr>
+                        </thead>
+                        <tbody id="positions-body"></tbody>
+                    </table>
+                </div>
+                <div id="history-content" class="hidden">
+                    <table id="history-table">
+                        <thead>
+                            <tr>
+                                <th>Side</th>
+                                <th>Qty</th>
+                                <th>Entry</th>
+                                <th>Exit</th>
+                                <th>P&L</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-body"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -111,34 +173,27 @@
     <div id="chart-container"></div>
     <div id="toast-container"></div>
 
-    <div id="view-toolbar">
-        <!-- Scale Controls (Hidden by default) -->
-        <div id="scale-toolbar" class="hidden">
-            <button class="scale-btn active" onclick="setScaleMode('auto')" title="Auto Scale">A</button>
-            <button class="scale-btn" onclick="setScaleMode('log')" title="Logarithmic">L</button>
-            <button class="scale-btn" onclick="setScaleMode('pct')" title="Percent Mode">%</button>
-        </div>
-        
-        <div class="toolbar-separator"></div>
+    <!-- Modal Overlay -->
 
-        <button onclick="togglePanel('trade-panel')" data-tooltip="Execution">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-        </button>
-        <button onclick="togglePanel('legend')" data-tooltip="Legend">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-        </button>
-        <button onclick="togglePanel('trend-info')" data-tooltip="Trend Info">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-        </button>
-        <button onclick="togglePanel('positions-panel')" data-tooltip="Positions">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
-        </button>
-        <button onclick="toggleScaleControls()" data-tooltip="Scale Modes">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
-        </button>
+    <!-- Modal Overlay -->
+    <div id="modal-overlay">
+        <div class="settings-modal">
+            <div class="modal-title">
+                <span id="modal-indicator-icon">⚙️</span>
+                <span id="modal-indicator-name">Indicator Settings</span>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Inputs generated dynamically -->
+            </div>
+            <div class="modal-footer">
+                <button class="cancel-btn" onclick="closeModal()">Cancel</button>
+                <button class="save-btn" id="modal-save-btn">Save Changes</button>
+            </div>
+        </div>
     </div>
 
     <!-- Scripts -->
+
     <script src="lightweight-charts.js"></script>
     <script src="js/plugins/markerManager.js"></script>
     <script src="js/plugins/priceLineManager.js"></script>

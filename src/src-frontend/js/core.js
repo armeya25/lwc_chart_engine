@@ -9,6 +9,11 @@ window.chartSeriesMap = new Map(); // chartId -> Set<seriesId>
 window.chartTimeZone = 'Asia/Kolkata';
 window.tooltipEnabled = false;
 
+// Disable context menu (right-click) on the window
+window.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+}, false);
+
 // Error Handling
 window.onerror = function (msg, url, line, col, error) {
     const loadingDiv = document.getElementById('loading');

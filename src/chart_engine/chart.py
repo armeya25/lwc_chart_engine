@@ -2,13 +2,17 @@ import subprocess
 import os
 import json
 import polars as pl
-from . import chart_engine_lib
+try:
+    from . import chart_engine_lib
+except (ImportError, ValueError):
+    import chart_engine_lib
 import time
 import threading
 import logging
 import atexit
 import base64
 import faulthandler
+from .indicators import IndicatorMixin
 
 # Enable faulthandler to get stack traces on native crashes (SIGSEGV, etc.)
 faulthandler.enable()
@@ -25,6 +29,18 @@ def _ensure_timestamp(val):
     if val is None: return None
     return chart_engine_lib.py_ensure_timestamp(val)
 
+# Cache for indicator schemas from Rust
+_INDICATOR_SCHEMAS = None
+
+def _get_indicator_schemas():
+    global _INDICATOR_SCHEMAS
+    if _INDICATOR_SCHEMAS is None:
+        try:
+            _INDICATOR_SCHEMAS = json.loads(chart_engine_lib.py_get_indicator_schemas())
+        except Exception:
+            _INDICATOR_SCHEMAS = {}
+    return _INDICATOR_SCHEMAS
+
 # Monkey patch to_arrow to fix the PyO3-Polars bridge error in Polars 1.x
 _orig_df_to_arrow = pl.DataFrame.to_arrow
 def _patched_df_to_arrow(self, *args, **kwargs):
@@ -37,6 +53,30 @@ def _patched_s_to_arrow(self, *args, **kwargs):
     kwargs.pop("compat_level", None)
     return _orig_s_to_arrow(self, *args, **kwargs)
 pl.Series.to_arrow = _patched_s_to_arrow
+
+def _ensure_polars(data):
+    """
+    Ensures the input data is a Polars DataFrame.
+    Handles: Polars DF, Pandas DF, List of dicts (JSON), and Single dicts.
+    """
+    if data is None: return None
+    if isinstance(data, pl.DataFrame):
+        return data
+    
+    # Try Pandas detection
+    if hasattr(data, "to_dict") and hasattr(data, "iloc"):
+        try:
+            return pl.from_pandas(data)
+        except Exception:
+            pass # Fallback to generic constructor
+            
+    # List of dicts or single dict
+    if isinstance(data, (list, dict)):
+        if isinstance(data, dict):
+            data = [data]
+        return pl.DataFrame(data)
+    
+    return pl.DataFrame(data)
 
 def _process_polars_data(df: pl.DataFrame) -> pl.DataFrame:
     """
@@ -74,8 +114,12 @@ class ChartAPI:
 
 class SubChart:
     def __init__(self, chart, chart_id): self.chart, self.chart_id = chart, chart_id
-    def create_line_series(self, name="Line"): return self.chart.create_line_series(name, self.chart_id)
-    def create_candlestick_series(self, name="Price"): return self.chart.create_candlestick_series(name, self.chart_id)
+    def create_line_series(self, name="Line", indicator=None, indicator_params=None, indicator_metadata=None): 
+        return self.chart.create_line_series(name, self.chart_id, indicator=indicator, indicator_params=indicator_params, indicator_metadata=indicator_metadata)
+    def create_candlestick_series(self, name="Price", indicator=None, indicator_params=None, indicator_metadata=None): 
+        return self.chart.create_candlestick_series(name, self.chart_id, indicator=indicator, indicator_params=indicator_params, indicator_metadata=indicator_metadata)
+
+
 
 class PriceLine:
     def __init__(self, rust_line, chart):
@@ -84,29 +128,118 @@ class PriceLine:
         cmd = self._rust_line.update(price)
         if cmd: self.chart._send_command(json.loads(cmd))
 
-class Series:
+class Series(IndicatorMixin):
     def __init__(self, chart, series_id, name, chart_id="chart-0", rust_series=None):
         self.chart, self.series_id, self.name, self.chart_id, self._rust_series = chart, series_id, name, chart_id, rust_series
+        self._auto_volume_enabled = True
+        self._last_df = None
+
+    def set_auto_volume(self, enabled: bool):
+        """Enable or disable automatic creation of a volume histogram pane."""
+        self._auto_volume_enabled = bool(enabled)
+        if self.chart and self.chart._rust_chart:
+            self.chart._rust_chart.set_series_auto_volume(self.series_id, enabled)
+    
     def set_data(self, df):
-        if self._rust_series:
-            df = _process_polars_data(df)
-            data_json = json.dumps(df.to_dicts(), cls=DateTimeEncoder)
-            cmd = json.loads(self._rust_series.set_data(data_json))
-            cmd["chartId"] = self.chart_id
-            self.chart._send_command(cmd)
-    def update(self, item):
-        if self._rust_series:
-            # Handle both dict and DataFrame/Series
-            if isinstance(item, dict):
-                item = pl.DataFrame([item])
+        if self.chart and self.chart._rust_chart:
+            df = _ensure_polars(df)
+            self._last_df = df # Persist for indicator calculations
             
-            item = _process_polars_data(item)
-            item_json = json.dumps(item.to_dicts()[0], cls=DateTimeEncoder)
-            cmd = json.loads(self._rust_series.update(item_json))
-            cmd["chartId"] = self.chart_id
-            self.chart._send_command(cmd)
+            # Use Chart level set_series_data to ensure latest state (including recently added indicators) is used.
+            commands = self.chart._rust_chart.set_series_data(self.series_id, df)
+            for cmd_str in commands:
+                for line in cmd_str.split('\n'):
+                    if line.strip():
+                        self.chart._send_command(json.loads(line))
+            return commands
+        return []
+    def update(self, item):
+        if self.chart and self.chart._rust_chart:
+            item = _ensure_polars(item)
+            # Use Chart level update_series_data to ensure state sync.
+            commands = self.chart._rust_chart.update_series_data(self.series_id, item)
+            for cmd_str in commands:
+                for line in cmd_str.split('\n'):
+                    if line.strip():
+                        self.chart._send_command(json.loads(line))
+            return commands
+        return []
     def apply_options(self, options):
         if self._rust_series: self.chart._send_command(json.loads(self._rust_series.apply_options(json.dumps(options))))
+
+    def add_indicator(self, ind_type, id=None, name=None, params=None, extra_ids=None, metadata=None):
+        """Helper to register an indicator in the Rust backend."""
+        params = params or {}
+        extra_ids = extra_ids or {}
+        metadata = metadata or {}
+        if id is None:
+            id = f"{self.series_id}_{ind_type}_{params.get('period', '')}"
+        
+        # Store metadata for frontend settings
+        full_metadata = {
+            "ind_type": ind_type,
+            "owner_id": self.series_id,
+            "params": params,
+            "schema": metadata
+        }
+        
+        # Notify frontend about indicator settings
+        # Use name or id as the group identifier if available
+        indicator_group = name if name else id
+        self.chart._send_command({
+            "action": "register_indicator_metadata",
+            "indicator": indicator_group,
+            "data": full_metadata
+        })
+        
+        # 1. Register in Rust Series
+        self._rust_series.add_indicator(id, ind_type, json.dumps(params), json.dumps(extra_ids))
+        
+        # 2. Re-trigger data sync if needed
+        if self._last_df is not None:
+            self.set_data(self._last_df)
+            
+        return id
+
+    def add_indicator_v2(self, ind_type, params=None, metadata=None):
+        """Unified optimized call to add an indicator with minimal context switching."""
+        params = params or {}
+        # 1. Call optimized Rust method
+        res_json = self.chart._rust_chart.add_indicator_v2(
+            self.series_id, ind_type, json.dumps(params), self.chart_id
+        )
+        res = json.loads(res_json)
+        
+        # 2. Process all commands (Creation, Options, Initial Data)
+        for cmd_str in res["commands"]:
+            for line in cmd_str.split('\n'):
+                if line.strip():
+                    self.chart._send_command(json.loads(line))
+        
+        # 3. Synchronize Python series map
+        main_sid = res["mainId"]
+        main_s = Series(self.chart, main_sid, ind_type, chart_id=self.chart_id, 
+                        rust_series=self.chart._rust_chart.series.get(main_sid))
+        self.chart.series[main_sid] = main_s
+        
+        for role, sid in res["extraIds"].items():
+            s = Series(self.chart, sid, role, chart_id=self.chart_id,
+                       rust_series=self.chart._rust_chart.series.get(sid))
+            self.chart.series[sid] = s
+            
+        # 4. Register metadata for UI settings
+        self.chart._send_command({
+            "action": "register_indicator_metadata",
+            "indicator": main_sid,
+            "data": {
+                "ind_type": ind_type,
+                "owner_id": self.series_id,
+                "params": params,
+                "schema": metadata or {}
+            }
+        })
+        
+        return main_s
 
     def add_marker(self, **kwargs):
         """Convenience method for adding a marker to this specific series."""
@@ -144,6 +277,38 @@ class Series:
             "color": color,
             "data": json.loads(data_json)
         })
+    def add_segmented_line(self, df, width=2):
+        """
+        Converts this series into a Segmented Line (single line with multiple colors).
+        Requires a DataFrame with 'time', 'value', and 'color' columns.
+        """
+        if df is None or df.is_empty(): return
+        
+        # Process timestamps and ensure required columns
+        df = _process_polars_data(df)
+        df = df.fill_nan(None)
+        
+        if "value" not in df.columns and "close" in df.columns:
+            df = df.rename({"close": "value"})
+            
+        required = {"time", "value", "color"}
+        if not required.issubset(set(df.columns)):
+            if "date" in df.columns and "time" not in df.columns:
+                df = df.rename({"date": "time"})
+            if not required.issubset(set(df.columns)):
+                raise ValueError(f"Segmented Line DataFrame must contain columns: {required}. Found: {df.columns}")
+
+        # Emit command to frontend
+        data_json = json.dumps(df.to_dicts(), cls=DateTimeEncoder)
+        self.chart._send_command({
+            "action": "create_segmented_line",
+            "seriesId": self.series_id,
+            "chartId": self.chart_id,
+            "options": {"width": width},
+            "data": json.loads(data_json)
+        })
+
+    # Indicators are now handled via IndicatorMixin in indicators.py
 
 class Chart:
     _instance = None
@@ -210,6 +375,20 @@ class Chart:
                         print(f"❌ [Chart Engine Error]: {msg.get('message', '')}")
                     continue
 
+                if msg.get("action") == "update_indicator":
+                    data = msg.get("data", {})
+                    ind_name = data.get("indicator")
+                    ind_type = data.get("ind_type")
+                    owner_id = data.get("owner_id")
+                    params = data.get("params")
+                    
+                    owner_series = self.series.get(owner_id)
+                    if owner_series:
+                        # Re-calculate indicator with new parameters
+                        # Using ind_name as id ensures the Rust backend calculator is overwritten
+                        owner_series.add_indicator(ind_type, id=ind_name, name=ind_name, params=params)
+                    continue
+
                 if msg.get("action") == "trade" and self.on_trade:
                     self.on_trade(msg.get("data"))
                 
@@ -252,9 +431,13 @@ class Chart:
         self._send_command({"action": "update_positions", "data": positions_data})
 
     @property
-    def positions(self):
-        """Returns the current list of positions from the Rust trader"""
-        return self._rust_trader.positions
+    def history(self):
+        """Returns the list of closed positions from the Rust trader"""
+        return self._rust_trader.history
+
+    def update_history(self, history_data):
+        """Update the trade history table in the UI"""
+        self._send_command({"action": "update_history", "data": history_data})
 
     @property
     def last_price(self):
@@ -267,17 +450,23 @@ class Chart:
         num = 3 if "1p2" in l_str else 4 if "1p3" in l_str else 2 if "double" in l_str else 1
         return [SubChart(self, f"chart-{i}") for i in range(num)]
 
-    def create_line_series(self, name="Line", chart_id="chart-0"):
+    def create_line_series(self, name="Line", chart_id="chart-0", indicator=None, indicator_params=None, indicator_metadata=None):
         sid, cmd_json = self._rust_chart.create_line_series(name, chart_id)
         cmd = json.loads(cmd_json)
-        cmd["chartId"], cmd["name"] = chart_id, name
+        if indicator:
+            cmd["indicator"] = indicator
+            if indicator_params: cmd["indicatorParams"] = indicator_params
+            if indicator_metadata: cmd["indicatorMetadata"] = indicator_metadata
         self._send_command(cmd)
         return Series(self, sid, name, chart_id=chart_id, rust_series=self._rust_chart.series.get(sid))
 
-    def create_candlestick_series(self, name="Price", chart_id="chart-0"):
+    def create_candlestick_series(self, name="Price", chart_id="chart-0", indicator=None, indicator_params=None, indicator_metadata=None):
         sid, cmd_json = self._rust_chart.create_candlestick_series(name, chart_id)
         cmd = json.loads(cmd_json)
-        cmd["chartId"], cmd["name"] = chart_id, name
+        if indicator:
+            cmd["indicator"] = indicator
+            if indicator_params: cmd["indicatorParams"] = indicator_params
+            if indicator_metadata: cmd["indicatorMetadata"] = indicator_metadata
         self._send_command(cmd)
         return Series(self, sid, name, chart_id=chart_id, rust_series=self._rust_chart.series.get(sid))
 

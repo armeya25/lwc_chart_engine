@@ -1,4 +1,129 @@
-# Changelog
+## [0.7.9] - 2026-04-10
+
+### 🚀 Core Improvements / Features
+- **Summary**: Smart Indicator Naming.
+- **Details**: Implemented parameter-aware labels in the legend (e.g., `SMA(14)`), resolving generic naming redundancies and providing better context at a glance.
+- **Summary**: Backend-Driven Naming Sanitization.
+- **Details**: Fixed "naming gibberish" by stripping JSON quotes from indicator types and parameters directly in the Rust core, ensuring a 100% human-readable legend.
+
+### 🎯 UI & API Enhancements
+- **Summary**: Streamlined Title Bar Navigation.
+- **Details**: Overhauled the navigation system by replacing the horizontal layout banner and floating vertical toolbars with a clean, nested **Layouts** submenu integrated into the window's **View** menu.
+- **Summary**: Positions Panel Modernization.
+- **Details**: Refactored tab switching (Active vs History) from legacy onclick handlers to robust event listeners. Added a `max-height: 240px` scroll limit and integrated active-state notifications for a smoother dashboard experience.
+- **Summary**: Production Build Synchronization.
+- **Details**: Synchronized `index.dist.html` with `index.html` to ensure that custom Title Bar controls, glassmorphism menus, and all new UI refinements are present in the final bundled application.
+
+### ⚙ Internal Refactoring
+- **Summary**: Event-Driven UI Initialization.
+- **Details**: Centralized UI component setup (Positions panel, Layout submenus) in `ui.js` and `entry.js` for improved reliability during fast application startup sequences.
+
+## [0.7.8] - 2026-04-10
+
+### ⚙ Internal Refactoring
+- **Summary**: Development branch for Title Bar restoration and layout synchronization.
+
+## [0.7.7] - 2026-04-10
+
+### ⚙ Internal Refactoring
+- **Summary**: Build script syntax fixes and tooling standardization (uv/.venv).
+
+## [0.7.6] - 2026-04-10
+
+### 🚀 Core Improvements / Features
+- **Summary**: State-Synced Indicator Engine.
+- **Details**: Resolved a critical issue where technical indicators would fail to appear after dynamic registration by shifting to a chart-level state synchronization model. 
+- **Summary**: Logic-Driven Indicator Metadata.
+- **Details**: Implemented `get_indicator_params_schema` in the Rust core to provide full parameter definitions (min/max/default) to the frontend during series creation.
+
+### 🎯 UI & API Enhancements
+- **Summary**: Premium Performance UI.
+- **Details**: Implemented a bespoke glassmorphism title bar with functional window controls (Minimize, Maximize, Close) and a dynamic **View** menu for layout management.
+- **Summary**: Smart Legend Redesign.
+- **Details**: Overhauled the legend with a dynamic layout system. Single-component indicators (SMA/EMA) use elegant single rows, while multi-component indicators (MACD/Supertrend) use structured, toggleable folders.
+- **Summary**: Legibility & Interaction Fixes.
+- **Details**: Replaced internal Suffix IDs (gibberish strings) with human-readable labels (e.g., SMA, MACD). Fixed visibility and functional triggers for indicator Gear (settings) and Close buttons.
+- **Summary**: Native Histogram Rendering.
+- **Details**: Added `create_histogram_series` to the Rust core for professional MACD histogram visuals.
+
+### ⚙ Internal Refactoring
+- **Summary**: Build Log & Hotkey Management.
+- **Details**: Cleaned up compiler warnings (redundant clones) and implemented global hotkeys (`T`, `L`, `E`, `P`, `I`) for panel management.
+
+## [0.7.5] - 2026-04-10
+
+### 🚀 Core Improvements / Features
+- **Summary**: Rust-Native Indicator Schemas & Orchestration.
+- **Details**: Migrated indicator parameter definitions (ranges, defaults, types) centrally to the Rust core. Introduced `add_indicator_v2`, a unified orchestration call that handles sub-series creation, registration, and data calculation in a single Python-to-Rust context switch, drastically reducing API "chattiness" and improving performance.
+
+### 🎯 UI & API Enhancements
+- **Summary**: Premium Indicator Settings Modal.
+- **Details**: Built a premium glassmorphism settings interface that dynamically generates inputs based on the Rust-provided metadata. Added full "Cancel" support to ensure system robustness when users abort parameter changes.
+- **Summary**: Color-Coded Volume & Real-time Sync.
+- **Details**: Overhauled the volume histogram system to support automated Up/Down (Green/Red) color-coding. Fixed a bug where volume bars were missing and implemented real-time, stateful volume updates to match price action ticks.
+
+### ⚙ Internal Refactoring
+- **Summary**: Safe Circular Dependency Management.
+- **Details**: Refactored `indicators.py` with late-binding imports to safely manage the relationship between the `Series` mixin and the main `Chart` engine.
+
+
+## [0.7.0] - 2026-04-10
+
+### 🚀 Core Improvements / Features
+- **Summary**: Live Indicator Values in Legend.
+- **Details**: Rewrote the crosshair-to-legend value pipeline in `ui.js`. The engine now performs a two-step lookup: first an exact match via `param.seriesData`, then a nearest-bar fallback via `series.dataByIndex(logicalIndex, -1)`. This ensures SMA, MACD, RSI, and all other indicator series always display live values while hovering — exactly like TradingView's legend behaviour.
+
+### 🎯 UI & API Enhancements
+- **Summary**: Independent Legend Panel Positioning.
+- **Details**: Decoupled the `#legend` component from the `#info-panel` container (which holds Trend and Positions). The legend is now a standalone `position: fixed` panel anchored to the **top-left**, while Trend Info remains in the **top-right** via `#info-panel`. Both panels collapse/expand independently and share the same glassmorphism aesthetic.
+- **Summary**: Legend Scroll & Size Constraint.
+- **Details**: Added `max-height: 340px` and `overflow-y: auto` on `#legend-content` to prevent the legend from growing to full-screen when many series are registered.
+
+### ⚙ Internal Refactoring
+- **Summary**: Frontend Path Fix for Build Script.
+- **Details**: Corrected the frontend build invocation to run `node build-frontend.js` from the `src/` subdirectory, matching the relative paths used by `esbuild` for `src-frontend/js/entry.js`.
+
+## [0.6.5] - 2026-04-10
+
+### 🚀 Core Improvements / Features
+- **Summary**: Stateful O(1) Real-time Scaling.
+- **Details**: Refactored the technical indicator engine to persist internal states (EMA averages, MACD signal lines). This enables the engine to process incremental market ticks in constant time, $O(1)$, regardless of historical data depth, ensuring stable high-frequency rendering for SMA, EMA, RSI, and MACD.
+- **Summary**: Zero-Copy Polars Bridge.
+- **Details**: Optimized the Python-to-Rust data bridge to utilize zero-copy memory mapping for Polars DataFrames via Apache Arrow. This eliminates the serialization bottleneck and provides near-instantaneous ingestion of large datasets.
+
+### 🎯 UI & API Enhancements
+- **Summary**: Constrained Legend Layout.
+- **Details**: Resolved a critical UI bug where the legend component would unexpectedly expand to fill the full screen. The legend has been moved into the `#info-panel` container, inheriting proper positioning constraints and premium glassmorphism styling.
+- **Summary**: High-Precision Marker Snap.
+- **Details**: Standardized the market data normalization layer to ensure high-precision floating point alignment for markers and drawing tools across all ingestion paths.
+
+### 🛠 Build & Workflow Optimizations
+- **Summary**: Robust Backend Schema Mapping.
+- **Details**: Implemented a comprehensive type-normalization layer in `src-backend/chart.rs` and `time_utils.rs` that automatically casts heterogeneous numeric inputs (e.g., integer volumes or price ticks) to `Float64`, preventing backend `SchemaMismatch` panics.
+
+## [0.6.4] - 2026-04-10
+
+### 🚀 Core Improvements / Features
+- **Summary**: Rust-Native Technical Indicator Engine.
+- **Details**: Migrated all technical indicator calculations (SMA, EMA, RSI, MACD, Bollinger Bands) from Python to the Rust core using Polars. This significantly reduces data transfer overhead and leverages Rust's high-performance SIMD-optimized math.
+- **Summary**: Real-time Incremental Calculation.
+- **Details**: Implemented stateful calculation logic in Rust that handles incremental price updates (ticks) with $O(1)$ complexity, avoiding redundant batch re-calculations for indicators like EMA and MACD during live market updates.
+- **Summary**: Multi-Series Indicator Synchronization.
+- **Details**: MACD and Bollinger Bands now correctly spawn and synchronize multiple sub-series (MACD/Signal/Histogram, Upper/Middle/Lower bands) directly from the backend.
+
+### 🎯 UI & API Enhancements
+- **Summary**: Modular Indicator Mixin API.
+- **Details**: Refactored `chart.py` to move all technical indicator methods into a separate `IndicatorMixin` module (`indicators.py`). This provides a cleaner architecture while maintaining the intuitive `series.add_indicator()` API.
+- **Summary**: Format-Agnostic Data Ingestion (Pandas/Polars/JSON).
+- **Details**: Refactored `set_data` and `update` to automatically detect and convert Pandas DataFrames, Polars DataFrames, and raw JSON (lists of dicts) into the internal format, providing a seamless experience for data scientists using different libraries.
+- **Summary**: Segmented Band Plugin Support.
+- **Details**: Added support for dynamic segmented bands (clouds with variable colors) through the `add_segmented_band` method.
+
+### 🛠 Build & Workflow Optimizations
+- **Summary**: Polars 0.48.1 Migration.
+- **Details**: Fully upgraded the backend to Polars 0.48.1, resolving upstream API breaking changes in `EWMOptions` and `RollingOptionsFixedWindow`.
+- **Summary**: Robust `maturin` Build & `cffi` Handling.
+- **Details**: Optimized the build process to automatically resolve `cffi` dependencies in `uv` environments and ensured the `python-bridge` feature is correctly toggled during development.
 
 ## [0.6.3] - 2026-04-10
 

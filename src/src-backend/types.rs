@@ -38,3 +38,56 @@ impl ChartCommand {
         }
     }
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum IndicatorType {
+    Sma,
+    Ema,
+    Dema,
+    Tema,
+    Rsi,
+    Macd,
+    BollingerBands,
+    Atr,
+    Stochastic,
+    Cci,
+    Vwap,
+    WilliamsR,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct IndicatorConfig {
+    pub indicator_type: IndicatorType,
+    pub target_series_id: String, // Principal series (e.g. MACD line or SMA)
+    pub chart_id: String,         // The pane/chart where this indicator belongs
+    #[serde(default)]
+    pub extra_target_ids: std::collections::HashMap<String, String>, // Extra series (e.g. Signal, Hist, Upper, Lower)
+    pub params: std::collections::HashMap<String, Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum IndicatorState {
+    Sma,
+    Ema(f64),
+    Dema { ema1: f64, ema2: f64 },
+    Tema { ema1: f64, ema2: f64, ema3: f64 },
+    Rsi { avg_gain: f64, avg_loss: f64 },
+    Macd { ema_fast: f64, ema_slow: f64, signal: f64 },
+    BollingerBands,
+    Atr(f64),
+    Stochastic { k: f64, d: f64 },
+    Cci,
+    WilliamsR,
+    Vwap { cum_tpv: f64, cum_vol: f64 },
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Point {
+    pub time: i64,
+    pub open: f64,
+    pub high: f64,
+    pub low: f64,
+    pub close: f64,
+    pub volume: Option<f64>,
+}

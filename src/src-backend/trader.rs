@@ -19,9 +19,22 @@ pub struct Position {
 }
 
 #[cfg_attr(feature = "python-bridge", pyclass)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClosedPosition {
+    pub side: String,
+    pub qty: f64,
+    pub entry: f64,
+    pub exit: f64,
+    pub pnl: f64,
+    pub entry_time: Option<i64>,
+    pub exit_time: Option<i64>,
+}
+
+#[cfg_attr(feature = "python-bridge", pyclass)]
 #[derive(Debug, Clone)]
 pub struct PaperTrader {
     pub positions: Vec<Position>,
+    pub history: Vec<ClosedPosition>,
     pub last_price: f64,
 }
 
@@ -29,6 +42,7 @@ impl PaperTrader {
     pub fn new() -> Self {
         Self {
             positions: Vec::new(),
+            history: Vec::new(),
             last_price: 0.0,
         }
     }
@@ -52,6 +66,17 @@ impl PaperTrader {
                         "type": "success"
                     }));
                     commands.push(cmd);
+                    
+                    self.history.push(ClosedPosition {
+                        side: p.side.clone(),
+                        qty: p.qty,
+                        entry: p.entry,
+                        exit: price,
+                        pnl: p.pnl,
+                        entry_time: p.time,
+                        exit_time: None, // Could use current time here if available
+                    });
+                    
                     to_remove.push(idx);
                     continue;
                 }
@@ -65,6 +90,17 @@ impl PaperTrader {
                         "type": "error"
                     }));
                     commands.push(cmd);
+                    
+                    self.history.push(ClosedPosition {
+                        side: p.side.clone(),
+                        qty: p.qty,
+                        entry: p.entry,
+                        exit: price,
+                        pnl: p.pnl,
+                        entry_time: p.time,
+                        exit_time: None,
+                    });
+                    
                     to_remove.push(idx);
                 }
             }
@@ -81,6 +117,12 @@ impl PaperTrader {
             let mut sync_cmd = ChartCommand::new("update_positions", "chart-0");
             sync_cmd.data = Some(json!(self.positions));
             commands.push(sync_cmd);
+            
+            if !to_remove.is_empty() {
+                let mut hist_cmd = ChartCommand::new("update_history", "chart-0");
+                hist_cmd.data = Some(json!(self.history));
+                commands.push(hist_cmd);
+            }
         }
 
         commands
@@ -133,12 +175,27 @@ impl Position {
 
 #[cfg(feature = "python-bridge")]
 #[pymethods]
+impl ClosedPosition {
+    #[getter] pub fn side(&self) -> String { self.side.clone() }
+    #[getter] pub fn qty(&self) -> f64 { self.qty }
+    #[getter] pub fn entry(&self) -> f64 { self.entry }
+    #[getter] pub fn exit(&self) -> f64 { self.exit }
+    #[getter] pub fn pnl(&self) -> f64 { self.pnl }
+    #[getter] pub fn entry_time(&self) -> Option<i64> { self.entry_time }
+    #[getter] pub fn exit_time(&self) -> Option<i64> { self.exit_time }
+}
+
+#[cfg(feature = "python-bridge")]
+#[pymethods]
 impl PaperTrader {
     #[getter]
     pub fn positions(&self) -> Vec<Position> { self.positions.clone() }
 
     #[getter]
     pub fn last_price(&self) -> f64 { self.last_price }
+
+    #[getter]
+    pub fn history(&self) -> Vec<ClosedPosition> { self.history.clone() }
 
     #[pyo3(name = "update_price")]
     pub fn py_update_price(&mut self, price: f64) -> Vec<String> {

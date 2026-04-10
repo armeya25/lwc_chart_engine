@@ -1,5 +1,6 @@
 pub mod chart;
 pub mod drawings;
+pub mod indicators;
 pub mod time_utils;
 pub mod types;
 
@@ -8,6 +9,11 @@ pub use chart::{Chart, Series};
 pub use drawings::{DrawingTool, PriceLine};
 pub use time_utils::{py_ensure_timestamp, py_process_polars_data, py_set_backend_timezone};
 pub use types::ChartCommand;
+
+#[pyfunction]
+fn py_get_indicator_schemas() -> String {
+    indicators::get_indicator_schemas()
+}
 
 #[pymodule]
 fn chart_engine_lib(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -18,5 +24,6 @@ fn chart_engine_lib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(py_set_backend_timezone, m)?)?;
     m.add_function(wrap_pyfunction!(py_ensure_timestamp, m)?)?;
     m.add_function(wrap_pyfunction!(py_process_polars_data, m)?)?;
+    m.add_function(wrap_pyfunction!(py_get_indicator_schemas, m)?)?;
     Ok(())
 }

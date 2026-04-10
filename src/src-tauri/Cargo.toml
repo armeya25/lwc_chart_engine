@@ -1,6 +1,6 @@
 [package]
 name = "chart_engine_lib"
-version = "0.6.3"
+version = "0.7.9"
 description = "tauri chart window"
 authors = ["amit vaidya"]
 edition = "2021"
@@ -25,7 +25,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 chrono = "0.4"
 chrono-tz = "0.9"
-polars = { version = "0.48.1", features = ["lazy", "dtype-datetime", "temporal", "strings", "timezones"] }
+polars = { version = "0.48.1", features = ["lazy", "dtype-datetime", "temporal", "strings", "timezones", "rolling_window", "ewma", "diff", "abs", "cum_agg"] }
 uuid = { version = "1.0", features = ["v4"] }
 once_cell = "1.18"
 pyo3 = { version = "0.24.2", optional = true, features = ["abi3-py38"] }

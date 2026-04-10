@@ -118,8 +118,7 @@ pub fn py_ensure_timestamp(val: &Bound<'_, PyAny>) -> PyResult<Option<i64>> {
 
 #[cfg(feature = "python-bridge")]
 #[pyfunction]
-pub fn py_process_polars_data(pydf: Bound<'_, PyAny>) -> PyResult<PyDataFrame> {
-    let pydf: PyDataFrame = pydf.extract()?;
+pub fn py_process_polars_data(pydf: PyDataFrame) -> PyResult<PyDataFrame> {
     let df = pydf.0;
     let processed = process_polars_data(df)
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("{}", e)))?;
@@ -264,11 +263,18 @@ pub fn process_polars_data(df: DataFrame) -> PolarsResult<DataFrame> {
             }
             _ => PolarsResult::Ok(time_col.as_series().unwrap().clone()),
         }?;
+    // 3. Normalize secondary columns (price/volume) to Float64
+    let price_cols = ["open", "high", "low", "close", "volume"];
+    for col_name in &price_cols {
+        if let Some(idx) = df.get_column_names().iter().position(|&s| s == *col_name) {
+            let col = df.get_columns()[idx].cast(&DataType::Float64)?;
+            df.replace_column(idx, col)?;
+        }
+    }
 
         df.replace_column(time_idx, new_time_s)?;
     }
 
-    // 4. Fill Nulls with 0
-    let df = df.fill_null(FillNullStrategy::Zero)?;
+    // 4. Preserve Nulls/NaNs to allow for gaps in charts (standard financial behavior)
     Ok(df)
 }

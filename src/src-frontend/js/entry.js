@@ -7,7 +7,6 @@ import { SyncManager } from './core.js';
 import { 
     showNotification, 
     initCharts, 
-    setupToolbar, 
     toggleLegend, 
     addLegendItem, 
     toggleTrendInfo, 
@@ -15,6 +14,9 @@ import {
     changeLayout, 
     createLayout, 
     updatePositionsUI,
+    updateHistoryUI,
+    switchTradingTab,
+    setupPositionsPanel,
     hideLoader
 } from './ui.js';
 import { 
@@ -29,12 +31,13 @@ import { BoxManager } from './plugins/boxManager.js';
 import { PositionToolManager } from './plugins/positionToolManager.js';
 import { LineToolManager } from './plugins/lineToolManager.js';
 import { BandSeriesPrimitive } from './plugins/bandPlugin.js';
+import { SegmentedLinePrimitive } from './plugins/segmentedLinePlugin.js';
+import { SegmentedBandPrimitive } from './plugins/segmentedBandPlugin.js';
 
 // --- Attach to Window for Backend/Bridge Compatibility ---
 window.SyncManager = SyncManager;
 window.showNotification = showNotification;
 window.initCharts = initCharts;
-window.setupToolbar = setupToolbar;
 window.toggleLegend = toggleLegend;
 window.addLegendItem = addLegendItem;
 window.toggleTrendInfo = toggleTrendInfo;
@@ -42,6 +45,9 @@ window.scrollToRealTime = scrollToRealTime;
 window.changeLayout = changeLayout;
 window.createLayout = createLayout;
 window.updatePositionsUI = updatePositionsUI;
+window.updateHistoryUI = updateHistoryUI;
+window.switchTradingTab = switchTradingTab;
+window.setupPositionsPanel = setupPositionsPanel;
 
 window.CommandQueue = CommandQueue;
 window.handleCommand = handleCommand;
@@ -54,11 +60,13 @@ window.BoxManager = BoxManager;
 window.PositionToolManager = PositionToolManager;
 window.LineToolManager = LineToolManager;
 window.BandSeriesPrimitive = BandSeriesPrimitive;
+window.SegmentedLinePrimitive = SegmentedLinePrimitive;
+window.SegmentedBandPrimitive = SegmentedBandPrimitive;
 
 // --- Final Initialization ---
 try {
     initCharts();
-    setupToolbar();
+    setupPositionsPanel();
     
     const loadingText = document.querySelector('.loading-text');
     if (loadingText) loadingText.innerText = "Waiting for Backend...";

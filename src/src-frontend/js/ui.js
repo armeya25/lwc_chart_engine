@@ -44,42 +44,155 @@ export function toggleLegend() {
     if (el) el.classList.toggle('collapsed');
 }
 
-export function addLegendItem(id, name, color) {
+export function addLegendItem(id, name, color, type = 'line', indicatorName = null, humanName = null, indicatorTypeName = null) {
     const legendContent = document.getElementById('legend-content');
     if (!legendContent) return;
     
-    // Legend item added, but keeping default visibility as per user request
-    const legendBox = document.getElementById('legend');
-    if (legendBox && legendBox.style.display === 'none') {
-        // Only ensure it's not permanently 'none' if it was set via inline style, 
-        // but respect the classes like 'collapsed' and 'hidden'.
+    // 1. Handle Grouped Indicators (Smart Grouping)
+    if (indicatorName) {
+        let group = document.getElementById(`legend-group-${indicatorName}`);
+        const groupLabel = indicatorTypeName || indicatorName;
+        const seriesLabel = humanName || name;
+        
+        // If first series for this indicator
+        if (!group) {
+            group = document.createElement('div');
+            group.id = `legend-group-${indicatorName}`;
+            group.className = 'legend-group';
+            group.dataset.indicator = indicatorName;
+            group.dataset.seriesCount = 1;
+            group.dataset.mainSid = id; // Track the primary sid
+            group.dataset.mainLabel = seriesLabel; // Store series-specific label
+            group.dataset.typeLabel = groupLabel; // Store indicator-type label
+            
+            // Initial HTML (assume single series first)
+            group.innerHTML = `
+                <div class="legend-single-row" id="group-row-${indicatorName}">
+                    <div style="display: flex; align-items: center; flex: 1; cursor: pointer;" onclick="toggleIndicatorVisibility('${indicatorName}')">
+                        <span class="legend-color" style="background-color: ${color}; width: 8px; height: 8px; margin-right: 8px;"></span>
+                        <span class="legend-name" style="font-weight: 600;">${groupLabel}</span>
+                        <span class="legend-value" id="legend-val-${id}" style="margin-left: 8px; font-family: var(--font-mono); font-size: 11px;">--</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                        <span class="legend-settings-btn" title="Settings" onclick="event.stopPropagation(); window.showIndicatorSettings('${indicatorName}')">⚙️</span>
+                        <span class="legend-close" onclick="event.stopPropagation(); window.CommandHandlers.remove_indicator('${indicatorName}')">×</span>
+                    </div>
+                </div>
+                <div class="legend-group-content hidden" id="group-content-${indicatorName}"></div>
+            `;
+            legendContent.appendChild(group);
+            return;
+        }
+
+        // If second or more series, promote to full group
+        const content = document.getElementById(`group-content-${indicatorName}`);
+        const singleRow = document.getElementById(`group-row-${indicatorName}`);
+        let count = parseInt(group.dataset.seriesCount);
+        
+        if (count === 1) {
+            const mainSid = group.dataset.mainSid;
+            const mainLabel = group.dataset.mainLabel;
+            const mainColor = singleRow.querySelector('.legend-color').style.backgroundColor;
+
+            // Transform single row to a group header
+            singleRow.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 8px; cursor: pointer;" onclick="toggleIndicatorVisibility('${indicatorName}')">
+                    <span class="legend-name" style="font-weight: 700; color: var(--text-primary);">${groupLabel}</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <span class="legend-settings-btn" title="Settings" onclick="event.stopPropagation(); window.showIndicatorSettings('${indicatorName}')">⚙️</span>
+                    <span class="legend-close" onclick="event.stopPropagation(); window.CommandHandlers.remove_indicator('${indicatorName}')">×</span>
+                </div>
+            `;
+            singleRow.className = 'legend-group-header';
+            content.classList.remove('hidden');
+            
+            // Move the first (main) series to the content area as the first sub-item
+            if (!document.getElementById(`legend-item-${mainSid}`)) {
+                const mainItem = document.createElement('div');
+                mainItem.id = `legend-item-${mainSid}`;
+                mainItem.className = 'legend-sub-item';
+                mainItem.dataset.seriesId = mainSid;
+                mainItem.innerHTML = `
+                    <div style="display: flex; align-items: center; font-size: 11px;">
+                        <span class="legend-color" style="background-color: ${mainColor}; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%;"></span>
+                        <span style="color: var(--text-secondary); margin-right: 4px;">${mainLabel}:</span>
+                        <span class="legend-value" id="legend-val-${mainSid}">--</span>
+                    </div>
+                `;
+                content.appendChild(mainItem);
+            }
+        }
+        
+        group.dataset.seriesCount = count + 1;
+        
+        // Add sub-item for the NEW series
+        if (!document.getElementById(`legend-item-${id}`)) {
+            const item = document.createElement('div');
+            item.id = `legend-item-${id}`;
+            item.className = 'legend-sub-item';
+            item.dataset.seriesId = id;
+            item.innerHTML = `
+                <div style="display: flex; align-items: center; font-size: 11px;">
+                    <span class="legend-color" style="background-color: ${color}; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%;"></span>
+                    <span style="color: var(--text-secondary); margin-right: 4px;">${seriesLabel}:</span>
+                    <span class="legend-value" id="legend-val-${id}">--</span>
+                </div>
+            `;
+            content.appendChild(item);
+        }
+        return;
     }
 
+    // 2. Handle Regular Series
     let item = document.getElementById(`legend-item-${id}`);
     if (!item) {
         item = document.createElement('div');
-        item.className = 'legend-item';
         item.id = `legend-item-${id}`;
         item.dataset.seriesId = id;
-        item.style.cursor = 'pointer';
         legendContent.appendChild(item);
     }
-    item.innerHTML = `
-        <span class="legend-color" style="background-color: ${color}"></span>
-        <span class="legend-name">${name}</span>
-        <span class="legend-value" id="legend-val-${id}">--</span>
-        <div class="legend-eye" style="margin-left: 6px; font-size: 10px; opacity: 0.7;">👁</div>
-    `;
 
-    item.addEventListener('click', () => {
-        const series = window.seriesMap.get(id);
-        if (series) {
-            const newVisible = !series.options().visible;
-            series.applyOptions({ visible: newVisible });
-            item.style.opacity = newVisible ? '1' : '0.5';
-        }
-    });
+    const isCandle = type === 'candle' || type === 'candlestick';
+    item.className = 'legend-item';
+    item.innerHTML = `
+        <div style="display: flex; align-items: center; flex: 1;">
+            <span class="legend-color" style="background-color: ${color}; color: ${color}"></span>
+            <span class="legend-name">${name}</span>
+        </div>
+        <div style="display: flex; align-items: center;">
+            <span class="legend-value" id="legend-val-${id}">--</span>
+            ${!isCandle ? `<span class="legend-close" onclick="event.stopPropagation(); window.CommandHandlers.remove_series(window.activeChartId ? window.charts.get(window.activeChartId) : window.charts.values().next().value, {seriesId: '${id}'})">×</span>` : ''}
+        </div>
+    `;
 }
+
+window.toggleIndicatorVisibility = function(indicatorName) {
+    const group = document.getElementById(`legend-group-${indicatorName}`);
+    if (!group) return;
+    
+    const content = group.querySelector('.legend-group-content');
+    const sids = Array.from(content.querySelectorAll('.legend-sub-item')).map(el => el.dataset.seriesId);
+    
+    // Also include children from single row if it hasn't been promoted
+    if (group.dataset.seriesCount == 1) {
+        const sid = group.dataset.mainSid;
+        if (sid && !sids.includes(sid)) sids.push(sid);
+    }
+
+    let firstVisible = true;
+    if (sids.length > 0) {
+        const firstSeries = window.seriesMap.get(sids[0]);
+        if (firstSeries) firstVisible = firstSeries.options().visible;
+    }
+    const newVisible = !firstVisible;
+    sids.forEach(sid => {
+        const series = window.seriesMap.get(sid);
+        if (series) series.applyOptions({ visible: newVisible });
+    });
+    group.style.opacity = newVisible ? '1' : '0.5';
+};
+
 
 export function toggleTrendInfo() {
     const el = document.getElementById('trend-info');
@@ -90,27 +203,25 @@ export function scrollToRealTime() {
     window.charts.forEach(c => c.timeScale().scrollToRealTime());
 }
 
-export function setupToolbar() {
-    const toolbar = document.getElementById('toolbar');
-    if (!toolbar) return;
-    toolbar.innerHTML = `
-        <div class="toolbar-trigger" id="layout-trigger"><span>Layout</span><span style="font-size: 8px; opacity: 0.7;">▼</span></div>
-        <div class="dropdown-menu" id="layout-menu">
-            <div class="menu-item" onclick="changeLayout('single')"><div class="layout-preview p-single"><div></div></div>Single Chart</div>
-            <div class="menu-item" onclick="changeLayout('2x1')"><div class="layout-preview p-2x1"><div></div><div></div></div>2x1 Vertical</div>
-            <div class="menu-item" onclick="changeLayout('1x2')"><div class="layout-preview p-1x2"><div></div><div></div></div>1x2 Horizontal</div>
-            <div class="menu-item" onclick="changeLayout('1p2')"><div class="layout-preview p-1p2"><div></div><div></div><div></div></div>1 Top + 2 Bottom</div>
-            <div class="menu-item" onclick="changeLayout('2x2')"><div class="layout-preview p-2x2"><div></div><div></div><div></div><div></div></div>2x2 Grid</div>
-        </div>
-    `;
-    const trigger = document.getElementById('layout-trigger'), menu = document.getElementById('layout-menu');
-    trigger.addEventListener('click', (e) => { e.stopPropagation(); menu.classList.toggle('visible'); trigger.classList.toggle('active'); });
-    document.addEventListener('click', (e) => { if (!toolbar.contains(e.target)) { menu.classList.remove('visible'); trigger.classList.remove('active'); }});
-}
-
 export function changeLayout(type) {
     createLayout(type);
-    const menu = document.getElementById('layout-menu'), trigger = document.getElementById('layout-trigger');
+    
+    // Update active state in View -> Layout submenu
+    const submenu = document.querySelector('.submenu');
+    if (submenu) {
+        submenu.querySelectorAll('.menu-item').forEach(item => {
+            const itemOnClick = item.getAttribute('onclick');
+            if (itemOnClick && itemOnClick.includes(`'${type}'`)) {
+                item.classList.add('active');
+            } else {
+                item.classList.remove('active');
+            }
+        });
+    }
+
+    // Auto-close the main dropdown
+    const menu = document.getElementById('view-menu-dropdown');
+    const trigger = document.getElementById('view-menu-trigger');
     if (menu) menu.classList.remove('visible');
     if (trigger) trigger.classList.remove('active');
 }
@@ -205,30 +316,51 @@ export function initCharts() {
                 resizeObserver.observe(cell);
 
                 chart.subscribeCrosshairMove(param => {
-                    if (!window.tooltipEnabled || !param.point || !param.time) { 
-                        tooltip.style.opacity = '0'; 
-                        // Reset all legend values for this chart
-                        const seriesSet = window.chartSeriesMap.get(chartId);
-                        if (seriesSet) seriesSet.forEach(sid => {
-                            const valEl = document.getElementById(`legend-val-${sid}`);
-                            if (valEl) valEl.innerText = '--';
-                        });
-                        return; 
-                    }
-                    
                     const seriesSet = window.chartSeriesMap.get(chartId);
-                    if (seriesSet) {
+                    
+                    // 1. Legend Updates (Always update when crosshair is on chart)
+                    if (param.time && seriesSet) {
+                        // Resolve logical bar index once for all series in this chart
+                        const logicalIndex = param.logical !== undefined
+                            ? Math.round(param.logical)
+                            : chart.timeScale().coordinateToLogical(param.point ? param.point.x : 0);
+
                         seriesSet.forEach(sid => {
                             const series = window.seriesMap.get(sid);
-                            const data = param.seriesData.get(series);
                             const valEl = document.getElementById(`legend-val-${sid}`);
-                            if (valEl && data) {
-                                let val = data.value !== undefined ? data.value : data.close;
-                                if (val !== undefined) valEl.innerText = val.toFixed(2);
-                            } else if (valEl) {
+                            if (!valEl || !series) return;
+
+                            // Primary: exact match from crosshair
+                            let rawData = param.seriesData.get(series);
+
+                            // Fallback: nearest-bar lookup for indicator series (SMA, MACD etc.)
+                            if (!rawData && logicalIndex != null && logicalIndex >= 0) {
+                                try { rawData = series.dataByIndex(logicalIndex, -1); } catch (_) {}
+                            }
+
+                            if (rawData) {
+                                const val = rawData.value !== undefined ? rawData.value : rawData.close;
+                                if (val !== undefined && val !== null) {
+                                    valEl.innerText = val.toFixed(2);
+                                } else {
+                                    valEl.innerText = '--';
+                                }
+                            } else {
                                 valEl.innerText = '--';
                             }
                         });
+                    } else if (seriesSet) {
+                        // Reset to -- when crosshair leaves
+                        seriesSet.forEach(sid => {
+                            const valEl = document.getElementById(`legend-val-${sid}`);
+                            if (valEl) valEl.innerText = '--';
+                        });
+                    }
+
+                    // 2. Floating Tooltip (Only if enabled and crosshair is on chart)
+                    if (!window.tooltipEnabled || !param.point || !param.time) { 
+                        tooltip.style.opacity = '0'; 
+                        return; 
                     }
 
                     const ohlcId = seriesSet ? [...seriesSet][0] : null;
@@ -254,6 +386,68 @@ export function initCharts() {
     
     // Initial layout pass
     createLayout('single');
+
+    // Setup Window Controls
+    if (window.__TAURI__) {
+        setupWindowControls();
+        setupViewMenu();
+    }
+}
+
+function setupViewMenu() {
+    const trigger = document.getElementById('view-menu-trigger');
+    const menu = document.getElementById('view-menu-dropdown');
+    
+    if (!trigger || !menu) return;
+    
+    trigger.onclick = (e) => {
+        e.stopPropagation();
+        menu.classList.toggle('visible');
+    };
+    
+    document.addEventListener('click', (e) => {
+        if (!menu.contains(e.target) && e.target !== trigger) {
+            menu.classList.remove('visible');
+        }
+    });
+
+    // Keyboard Shortcuts
+    document.addEventListener('keydown', (e) => {
+        const key = e.key.toLowerCase();
+        if (e.ctrlKey || e.metaKey) return; // Don't trigger on ctrl+C etc.
+        
+        if (key === 't') toggleToolbar();
+        if (key === 'l') togglePanel('legend');
+        if (key === 'e') togglePanel('trade-panel');
+        if (key === 'p') togglePanel('positions-panel');
+        if (key === 'i') togglePanel('trend-info');
+    });
+}
+
+// Replaced with View -> Layout submenu
+// export function toggleToolbar() { ... }
+
+function setupWindowControls() {
+    const { getCurrentWindow } = window.__TAURI__.window;
+    const appWindow = getCurrentWindow();
+
+    const minBtn = document.getElementById('titlebar-minimize');
+    const maxBtn = document.getElementById('titlebar-maximize');
+    const closeBtn = document.getElementById('titlebar-close');
+
+    if (minBtn) minBtn.onclick = () => appWindow.minimize();
+    if (maxBtn) maxBtn.onclick = () => appWindow.toggleMaximize();
+    if (closeBtn) closeBtn.onclick = () => appWindow.close();
+
+    // Maximize icon toggle script is simple:
+    appWindow.onResized(async () => {
+        const isMaximized = await appWindow.isMaximized();
+        if (maxBtn) {
+            maxBtn.innerHTML = isMaximized 
+                ? '<svg width="12" height="12" viewBox="0 0 24 24"><path fill="currentColor" d="M4 8h4V4h12v12h-4v4H4V8zm12 0v6h2V6H10v2h6zM6 10v8h8v-8H6z"/></svg>' // Restore icon
+                : '<svg width="12" height="12" viewBox="0 0 24 24"><path fill="currentColor" d="M4 4h16v16H4V4zm2 4v10h12V8H6z"/></svg>'; // Maximize icon
+        }
+    });
 }
 
 window.initCharts = initCharts;
@@ -274,19 +468,6 @@ window.togglePanel = function(id) {
             if (isNowHidden) showNotification("Positions Window Hidden", "info", 2000);
         }
 
-        // Auto-expand trend-info when opened from toolbar
-        if (id === 'trend-info' && !isNowHidden) {
-            el.classList.remove('collapsed');
-        }
-    }
-    
-    // Update toolbar button states
-    const btn = document.querySelector(`#view-toolbar button[onclick*="${id}"]`);
-    if (btn) {
-        const el = document.getElementById(id);
-        const isActive = el && !el.classList.contains('hidden') && !el.classList.contains('collapsed');
-        btn.style.borderColor = isActive ? 'var(--primary-color)' : '';
-        btn.style.color = isActive ? 'var(--primary-color)' : '';
     }
 };
 
@@ -317,11 +498,8 @@ window.executeTrade = function(side) {
                     showNotification(`Execution Failed: ${e}`, 'error');
                 });
         }
-    } else {
-        console.log("Mock Trade:", side, qty, tp, sl);
-        showNotification(`Mock: ${side.toUpperCase()} ${qty}`, 'warning');
     }
-};
+}
 
 export function updatePositionsUI(positions) {
     const panel = document.getElementById('positions-panel');
@@ -334,32 +512,126 @@ export function updatePositionsUI(positions) {
         return;
     }
 
-    if (!positions || positions.length === 0) {
-        panel.classList.add('hidden');
-        return;
+    // Show panel if we have positions
+    if (positions && positions.length > 0) {
+        panel.classList.remove('hidden');
     }
 
-    panel.classList.remove('hidden');
+    body.innerHTML = '';
+    let totalPnl = 0;
+    
+    if (positions) {
+        positions.forEach(p => {
+            totalPnl += p.pnl;
+            const tr = document.createElement('tr');
+            const pnlClass = p.pnl >= 0 ? 'pnl-up' : 'pnl-down';
+            const sideClass = p.side === 'buy' ? 'side-buy' : 'side-sell';
+            
+            tr.innerHTML = `
+                <td><span class="${sideClass}">${p.side.toUpperCase()}</span></td>
+                <td>${p.qty}</td>
+                <td>${p.entry.toFixed(2)}</td>
+                <td>${p.price.toFixed(2)}</td>
+                <td>${p.tp ? p.tp.toFixed(2) : '-'}</td>
+                <td>${p.sl ? p.sl.toFixed(2) : '-'}</td>
+                <td class="${pnlClass}">${p.pnl.toFixed(2)}</td>
+            `;
+            body.appendChild(tr);
+        });
+    }
+
+    updatePerformanceSummary(totalPnl, null);
+}
+
+export function updateHistoryUI(history) {
+    const body = document.getElementById('history-body');
+    if (!body) return;
     body.innerHTML = '';
     
-    positions.forEach(p => {
-        const tr = document.createElement('tr');
-        const pnl = p.pnl || 0;
-        const pnlClass = pnl >= 0 ? 'pos-pnl-up' : 'pos-pnl-down';
-        const sideClass = p.side === 'buy' ? 'pos-side-buy' : 'pos-side-sell';
-        
-        tr.innerHTML = `
-            <td class="${sideClass}">${p.side.upperCase ? p.side.upperCase() : p.side.toUpperCase()}</td>
-            <td>${p.qty}</td>
-            <td>${p.entry.toFixed(2)}</td>
-            <td>${p.price.toFixed(2)}</td>
-            <td>${p.tp ? p.tp.toFixed(2) : '-'}</td>
-            <td>${p.sl ? p.sl.toFixed(2) : '-'}</td>
-            <td class="${pnlClass}">${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}</td>
-        `;
-        body.appendChild(tr);
-    });
-};
+    let histPnl = 0;
+    let wins = 0;
+    
+    if (history) {
+        history.forEach(p => {
+            histPnl += p.pnl;
+            if (p.pnl > 0) wins++;
+            
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><span class="side-${p.side}">${p.side.toUpperCase()}</span></td>
+                <td>${p.qty}</td>
+                <td>${p.entry.toFixed(2)}</td>
+                <td>${p.exit.toFixed(2)}</td>
+                <td class="pnl-${p.pnl >= 0 ? 'up' : 'down'}">${p.pnl.toFixed(2)}</td>
+            `;
+            body.appendChild(tr);
+        });
+    }
+
+    const winRate = history && history.length > 0 ? (wins / history.length * 100).toFixed(1) : 0;
+    updatePerformanceSummary(null, { pnl: histPnl, wr: winRate });
+}
+
+function updatePerformanceSummary(activePnl, histData) {
+    const pnlEl = document.getElementById('total-pnl');
+    const wrEl = document.getElementById('win-rate');
+    
+    if (activePnl !== null) window._lastActivePnl = activePnl;
+    if (histData !== null) window._lastHistData = histData;
+    
+    const totalPnl = (window._lastActivePnl || 0) + (window._lastHistData?.pnl || 0);
+    const wr = window._lastHistData?.wr || 0;
+    
+    if (pnlEl) {
+        pnlEl.textContent = `P/L: ${totalPnl.toFixed(2)}`;
+        pnlEl.className = totalPnl >= 0 ? 'pnl-up' : 'pnl-down';
+    }
+    if (wrEl) wrEl.textContent = `WR: ${wr}%`;
+}
+
+export function setupPositionsPanel() {
+    const tabActive = document.getElementById('tab-active');
+    const tabHistory = document.getElementById('tab-history');
+    
+    if (tabActive) {
+        tabActive.addEventListener('click', (e) => {
+            e.stopPropagation();
+            switchTradingTab('active');
+        });
+    }
+    if (tabHistory) {
+        tabHistory.addEventListener('click', (e) => {
+            e.stopPropagation();
+            switchTradingTab('history');
+        });
+    }
+}
+
+export function switchTradingTab(tab) {
+    const activeTab = document.getElementById('tab-active');
+    const histTab = document.getElementById('tab-history');
+    const activeContent = document.getElementById('active-content');
+    const histContent = document.getElementById('history-content');
+    
+    if (!activeTab || !histTab || !activeContent || !histContent) {
+        console.warn("Positions UI elements missing for switchTradingTab");
+        return;
+    }
+    
+    if (tab === 'active') {
+        activeTab.classList.add('active');
+        histTab.classList.remove('active');
+        activeContent.classList.remove('hidden');
+        histContent.classList.add('hidden');
+        showNotification("Viewing Active Positions", "info", 1200);
+    } else {
+        activeTab.classList.remove('active');
+        histTab.classList.add('active');
+        activeContent.classList.add('hidden');
+        histContent.classList.remove('hidden');
+        showNotification("Viewing Trade History", "info", 1200);
+    }
+}
 
 function makeDraggable(elementId, handleSelector) {
     const element = document.getElementById(elementId);
@@ -433,3 +705,58 @@ window.createLayout = createLayout;
 window.updatePositionsUI = updatePositionsUI;
 window.hideLoader = hideLoader;
 window.initCharts = initCharts;
+
+// --- Modal Functions ---
+window.showIndicatorSettings = function(indicatorName) {
+    const meta = window.indicatorsMetadata.get(indicatorName);
+    if (!meta || !meta.metadata) return;
+
+    const overlay = document.getElementById('modal-overlay');
+    const body = document.getElementById('modal-body');
+    const nameEl = document.getElementById('modal-indicator-name');
+    const saveBtn = document.getElementById('modal-save-btn');
+    
+    nameEl.textContent = `${indicatorName} Settings`;
+    body.innerHTML = '';
+    
+    const currentParams = meta.params || {};
+    
+    Object.entries(meta.metadata).forEach(([key, schema]) => {
+        const group = document.createElement('div');
+        group.className = 'param-group';
+        
+        const label = document.createElement('label');
+        label.textContent = key;
+        
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.value = currentParams[key] !== undefined ? currentParams[key] : schema.default;
+        if (schema.min !== undefined) input.min = schema.min;
+        if (schema.max !== undefined) input.max = schema.max;
+        if (schema.step !== undefined) input.step = schema.step;
+        input.dataset.key = key;
+        input.dataset.type = schema.type;
+        
+        group.appendChild(label);
+        group.appendChild(input);
+        body.appendChild(group);
+    });
+    
+    saveBtn.onclick = () => {
+        const newParams = {};
+        body.querySelectorAll('input').forEach(input => {
+            const val = input.dataset.type === 'int' ? parseInt(input.value) : parseFloat(input.value);
+            newParams[input.dataset.key] = val;
+        });
+        
+        window.CommandHandlers.update_indicator(indicatorName, newParams);
+        window.closeModal();
+    };
+    
+    overlay.classList.add('active');
+};
+
+window.closeModal = function() {
+    const overlay = document.getElementById('modal-overlay');
+    if (overlay) overlay.classList.remove('active');
+};

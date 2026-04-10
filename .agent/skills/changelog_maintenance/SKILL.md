@@ -25,6 +25,9 @@ Use this skill to automatically update the `docs/changelog.md` file after signif
 4.  **Update the File**:
     - Prepend the new entry to the top of the `docs/changelog.md` file, below the main header.
     - Ensure the signature at the bottom remains: `*maintained by amit vaidya*`.
+5.  **Tooling Standards**:
+    - **Always use `uv`** for all Python package installations and management. 
+    - **Always use `.venv`** as the standard virtual environment directory within the project root.
 
 ## 📝 Template
 

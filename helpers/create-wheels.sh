@@ -33,8 +33,11 @@ fi
 
 # Ensure core build dependencies are installed
 echo "📦 Ensuring build dependencies (maturin, polars) are up-to-date..."
-# Use python3 -m pip instead of direct pip
-python3 -m pip install --quiet --upgrade pip maturin polars || echo "⚠️ Could not update pip/maturin/polars automatically."
+if command -v uv >/dev/null 2>&1; then
+    uv pip install --quiet --upgrade pip maturin polars || echo "⚠️ Could not update with uv."
+else
+    python3 -m pip install --quiet --upgrade pip maturin polars || echo "⚠️ Could not update pip/maturin/polars automatically."
+fi
 
 # 0. Cleanup old artifacts
 echo "🧹 Clearing previous build artifacts..."
@@ -84,7 +87,7 @@ if [ -f "$LPATH" ]; then
     cp "$LPATH" "src/chart_engine/chart_engine_lib.so"
 fi
 
-# Build the wheel (.whl) for distribution
+# Build the wheel .whl for distribution
 echo "📦 Generating production wheel (lightweight)..."
 mkdir -p wheels
 rm -f src/chart_engine/chart_engine_lib.so # Never include manually copied libs in the wheel

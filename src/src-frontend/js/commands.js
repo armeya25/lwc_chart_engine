@@ -71,10 +71,47 @@ export const CommandQueue = {
 const getSId = (cmd) => cmd.id || cmd.seriesId || cmd.series_id;
 
 window.isReady = false;
+window.indicatorsMetadata = new Map(); // Store { params, metadata, chartId, type }
+
 export function handleCommand(cmd) {
     if (typeof cmd === 'string') cmd = JSON.parse(cmd);
     CommandQueue.push(cmd);
 };
+
+// --- Helper for Multiple Indicator Panes ---
+function ensurePaneLayout(chart, targetPaneId) {
+    // Collect all active indicator panes (scales that start with pane_)
+    const seriesSet = window.seriesMap.values();
+    const panes = new Set();
+    for (const s of seriesSet) {
+        const sid = s.options().priceScaleId;
+        if (sid && sid.startsWith('pane_')) panes.add(sid);
+    }
+    panes.add(targetPaneId); // Ensure the one we are creating is counted
+
+    const numPanes = panes.size;
+    const paneHeight = 0.20; // 20% per indicator
+    const totalIndicatorHeight = Math.min(0.5, numPanes * paneHeight);
+    const priceHeight = 1.0 - totalIndicatorHeight;
+
+    // Update Main Price Scale (right)
+    chart.priceScale('right').applyOptions({
+        scaleMargins: { top: 0.1, bottom: totalIndicatorHeight + 0.05 }
+    });
+
+    // Distribute indicators in the bottom area
+    const paneList = Array.from(panes).sort();
+    paneList.forEach((pid, idx) => {
+        const bottomOffset = (numPanes - 1 - idx) * paneHeight;
+        chart.priceScale(pid).applyOptions({
+            scaleMargins: { 
+                top: priceHeight + (idx * (totalIndicatorHeight / numPanes)) + 0.02, 
+                bottom: bottomOffset 
+            },
+            borderVisible: false
+        });
+    });
+}
 
 export const CommandHandlers = {
     configure_chart: (targetChart, cmd) => { if (targetChart) targetChart.applyOptions(cmd.data); },
@@ -87,33 +124,79 @@ export const CommandHandlers = {
         if (!targetChart) return;
         const sid = getSId(cmd);
         if (window.seriesMap.has(sid)) return;
+
+        // Handle Pane Scaling for indicators
+        if (cmd.options && cmd.options.priceScaleId && cmd.options.priceScaleId.startsWith('pane_')) {
+            ensurePaneLayout(targetChart, cmd.options.priceScaleId);
+        }
+
         const series = targetChart.addSeries(LightweightCharts.LineSeries, cmd.options);
         window.seriesMap.set(sid, series);
         if (!window.chartSeriesMap.has(chartId)) window.chartSeriesMap.set(chartId, new Set());
         window.chartSeriesMap.get(chartId).add(sid);
-        window.addLegendItem(sid, cmd.name, cmd.options.color);
+        
+        if (cmd.indicator) {
+            window.indicatorsMetadata.set(cmd.indicator, {
+                sid, chartId, params: cmd.indicatorParams, metadata: cmd.indicatorMetadata || (cmd.extra ? cmd.extra.indicatorMetadata : null), type: 'line'
+            });
+        }
+        const humanName = cmd.extra ? cmd.extra.human_name : cmd.name;
+        const indicatorTypeName = cmd.extra ? cmd.extra.indicator_type_name : null;
+        window.addLegendItem(sid, cmd.name, cmd.options.color, 'line', cmd.indicator, humanName, indicatorTypeName);
     },
     create_area_series: (targetChart, cmd, chartId) => {
         if (!targetChart) return;
         const sid = getSId(cmd);
         if (window.seriesMap.has(sid)) return;
+
+        // Handle Pane Scaling for indicators
+        if (cmd.options && cmd.options.priceScaleId && cmd.options.priceScaleId.startsWith('pane_')) {
+            ensurePaneLayout(targetChart, cmd.options.priceScaleId);
+        }
+
         const series = targetChart.addSeries(LightweightCharts.AreaSeries, cmd.options);
         window.seriesMap.set(sid, series);
         if (!window.chartSeriesMap.has(chartId)) window.chartSeriesMap.set(chartId, new Set());
         window.chartSeriesMap.get(chartId).add(sid);
-        window.addLegendItem(sid, cmd.name, cmd.options.lineColor || cmd.options.topColor);
+        const humanName = cmd.extra ? cmd.extra.human_name : cmd.name;
+        const indicatorTypeName = cmd.extra ? cmd.extra.indicator_type_name : null;
+        window.addLegendItem(sid, cmd.name, cmd.options.lineColor || cmd.options.topColor, 'area', cmd.indicator, humanName, indicatorTypeName);
     },
-    create_band_plugin: (_targetChart, cmd) => {
+    create_segmented_line: (_targetChart, cmd) => {
         const ownerSeries = window.seriesMap.get(getSId(cmd));
-        if (ownerSeries && window.BandSeriesPrimitive) {
-            if (!ownerSeries._bandPlugins) ownerSeries._bandPlugins = {};
-            if (ownerSeries._bandPlugins[cmd.color]) ownerSeries._bandPlugins[cmd.color].setData(cmd.data);
-            else {
-                const band = new window.BandSeriesPrimitive({ color: cmd.color });
-                ownerSeries.attachPrimitive(band);
-                ownerSeries._bandPlugins[cmd.color] = band;
-                band.setData(cmd.data);
+        if (ownerSeries && window.SegmentedLinePrimitive) {
+            if (!ownerSeries._segmentedPlugin) {
+                const plugin = new window.SegmentedLinePrimitive(cmd.options || {});
+                ownerSeries.attachPrimitive(plugin);
+                ownerSeries._segmentedPlugin = plugin;
+                // Keep series visible but hide its main line so coordinates are calculated
+                ownerSeries.applyOptions({ 
+                    lineWidth: 0,
+                    priceLineVisible: false,
+                    lastValueVisible: false,
+                    crosshairMarkerVisible: false
+                });
             }
+            ownerSeries._segmentedPlugin.setData(cmd.data);
+        }
+    },
+    create_segmented_band: (_targetChart, cmd) => {
+        const ownerSeries = window.seriesMap.get(getSId(cmd));
+        if (ownerSeries && window.SegmentedBandPrimitive) {
+            if (!ownerSeries._segmentedBandPlugin) {
+                const plugin = new window.SegmentedBandPrimitive(cmd.options || {});
+                ownerSeries.attachPrimitive(plugin);
+                ownerSeries._segmentedBandPlugin = plugin;
+                // Hide main representative series
+                ownerSeries.applyOptions({ 
+                    lineWidth: 0,
+                    priceLineVisible: false,
+                    lastValueVisible: false,
+                    lineVisible: false,
+                    areaVisible: false
+                });
+            }
+            ownerSeries._segmentedBandPlugin.setData(cmd.data);
         }
     },
     create_candlestick_series: (targetChart, cmd, chartId) => {
@@ -125,22 +208,47 @@ export const CommandHandlers = {
         window.seriesMap.set(sid, series);
         if (!window.chartSeriesMap.has(chartId)) window.chartSeriesMap.set(chartId, new Set());
         window.chartSeriesMap.get(chartId).add(sid);
-        window.addLegendItem(sid, cmd.name, cmd.options.upColor);
+        const humanName = cmd.extra ? cmd.extra.human_name : cmd.name;
+        const indicatorTypeName = cmd.extra ? cmd.extra.indicator_type_name : null;
+        if (cmd.indicator) {
+            window.indicatorsMetadata.set(cmd.indicator, {
+                sid, chartId, params: cmd.indicatorParams, metadata: cmd.extra ? cmd.extra.indicatorMetadata : null, type: 'candle'
+            });
+        }
+        window.addLegendItem(sid, cmd.name, cmd.options.upColor, 'candle', cmd.indicator, humanName, indicatorTypeName);
     },
     create_histogram_series: (targetChart, cmd, chartId) => {
         if (!targetChart) return;
         const sid = getSId(cmd);
         if (window.seriesMap.has(sid)) return;
+
+        // Handle Pane Scaling for indicators
+        if (cmd.options && cmd.options.priceScaleId && cmd.options.priceScaleId.startsWith('pane_')) {
+            ensurePaneLayout(targetChart, cmd.options.priceScaleId);
+        }
+
         const series = targetChart.addSeries(LightweightCharts.HistogramSeries, cmd.options);
         window.seriesMap.set(sid, series);
         if (!window.chartSeriesMap.has(chartId)) window.chartSeriesMap.set(chartId, new Set());
         window.chartSeriesMap.get(chartId).add(sid);
-        window.addLegendItem(sid, cmd.name, cmd.options.color);
+        const humanName = cmd.extra ? cmd.extra.human_name : cmd.name;
+        const indicatorTypeName = cmd.extra ? cmd.extra.indicator_type_name : null;
+        if (cmd.indicator) {
+            window.indicatorsMetadata.set(cmd.indicator, {
+                sid, chartId, params: cmd.indicatorParams, metadata: cmd.extra ? cmd.extra.indicatorMetadata : null, type: 'histogram'
+            });
+        }
+        window.addLegendItem(sid, cmd.name, cmd.options.color, 'histogram', cmd.indicator, humanName, indicatorTypeName);
     },
     set_data: (_targetChart, cmd) => {
         const sid = getSId(cmd);
         const series = window.seriesMap.get(sid);
         if (series) {
+            // If this series has a segmented plugin, update it too
+            if (series._segmentedPlugin) {
+                series._segmentedPlugin.setData(cmd.data);
+            }
+            
             // Auto-fallback: if it's a line/area series and data has no 'value', use 'close'
             const processedData = cmd.data.map(item => {
                 if (item.value === undefined && item.close !== undefined) {
@@ -153,6 +261,54 @@ export const CommandHandlers = {
             if (typeof BoxManager !== 'undefined') BoxManager.updatePositions();
             if (typeof PositionToolManager !== 'undefined') PositionToolManager.updatePositions();
             if (typeof LineToolManager !== 'undefined') LineToolManager.updatePositions();
+        }
+    },
+    set_volume_data: (targetChart, cmd, chartId) => {
+        if (!targetChart) return;
+        const mainSid = getSId(cmd);
+        const volumeSid = `volume-${mainSid}`;
+        
+        let volumeSeries = window.seriesMap.get(volumeSid);
+        if (!volumeSeries) {
+            volumeSeries = targetChart.addSeries(LightweightCharts.HistogramSeries, {
+                color: '#26a69a',
+                priceFormat: { type: 'volume' },
+                priceScaleId: 'volume', // Dedicated scale for volume pane
+            });
+            
+            // Configure the volume scale to be at the bottom
+            targetChart.priceScale('volume').applyOptions({
+                scaleMargins: {
+                    top: 0.8, // Reserve top 80% for Price
+                    bottom: 0,
+                },
+            });
+            
+            window.seriesMap.set(volumeSid, volumeSeries);
+            if (!window.chartSeriesMap.has(chartId)) window.chartSeriesMap.set(chartId, new Set());
+            window.chartSeriesMap.get(chartId).add(volumeSid);
+            window.addLegendItem(volumeSid, 'Volume', '#26a69a', 'histogram');
+        }
+
+        const volumeData = cmd.data.map(d => ({
+            time: d.time,
+            value: d.volume,
+            color: d.close >= d.open ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)'
+        }));
+        volumeSeries.setData(volumeData);
+    },
+    update_volume_data: (targetChart, cmd) => {
+        if (!targetChart) return;
+        const mainSid = getSId(cmd);
+        const volumeSid = `volume-${mainSid}`;
+        const volumeSeries = window.seriesMap.get(volumeSid);
+        if (volumeSeries && cmd.data) {
+            const d = cmd.data;
+            volumeSeries.update({
+                time: d.time,
+                value: d.volume,
+                color: d.close >= d.open ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)'
+            });
         }
     },
     update_data: (_targetChart, cmd) => {
@@ -296,8 +452,8 @@ export const CommandHandlers = {
         if (panel) panel.classList.toggle('hidden', !cmd.data.visible);
     },
     set_layout_toolbar_visibility: (_targetChart, cmd) => {
-        const toolbar = document.getElementById('toolbar');
-        if (toolbar) toolbar.classList.toggle('hidden', !cmd.data.visible);
+        // Deprecated: Toolbar no longer exists. Layout is now in View Menu.
+        console.warn("set_layout_toolbar_visibility is deprecated. Layout is now in View Menu.");
     },
     set_legend_visibility: (_targetChart, cmd) => {
         const legend = document.getElementById('legend');
@@ -305,6 +461,9 @@ export const CommandHandlers = {
     },
     update_positions: (_targetChart, cmd) => {
         if (window.updatePositionsUI) window.updatePositionsUI(cmd.data);
+    },
+    update_history: (_targetChart, cmd) => {
+        if (window.updateHistoryUI) window.updateHistoryUI(cmd.data);
     },
     set_trading_visibility: (_targetChart, cmd) => {
         const trade = document.getElementById('trade-panel');
@@ -364,14 +523,72 @@ export const CommandHandlers = {
             }
         }
     },
+    remove_indicator: (_targetChart, indicatorName) => {
+        const group = document.getElementById(`legend-group-${indicatorName}`);
+        if (group) {
+            const groupContent = group.querySelector('.legend-group-content');
+            const items = Array.from(groupContent.querySelectorAll('.legend-sub-item'));
+            items.forEach(item => {
+                const sid = item.dataset.seriesId;
+                // Reuse remove_series logic manually or find the targetChart
+                // For simplicity, we can just call removal on all charts
+                window.charts.forEach(chart => {
+                    const series = window.seriesMap.get(sid);
+                    if (series) {
+                        try { chart.removeSeries(series); } catch(e) {}
+                    }
+                });
+                window.seriesMap.delete(sid);
+                window.chartSeriesMap.forEach(sSet => sSet.delete(sid));
+                item.remove();
+            });
+            group.remove();
+        }
+    },
+    open_indicator_settings: (_targetChart, indicatorName) => {
+        if (window.showIndicatorSettings) {
+            window.showIndicatorSettings(indicatorName);
+        }
+    },
+    register_indicator_metadata: (_targetChart, cmd) => {
+        const indicator = cmd.indicator;
+        const data = cmd.data;
+        window.indicatorsMetadata.set(indicator, {
+            params: data.params,
+            metadata: data.schema,
+            ownerId: data.owner_id,
+            indType: data.ind_type
+        });
+    },
+    update_indicator: (_targetChart, indicatorName, newParams) => {
+        const meta = window.indicatorsMetadata.get(indicatorName);
+        if (meta) {
+            // Update local params
+            meta.params = newParams;
+            
+            // Emit to Python backend
+            const invoke = window.__TAURI__ ? window.__TAURI__.invoke : (window.pywebview ? window.pywebview.api.emit_to_backend : null);
+            if (invoke) {
+                invoke('emit_to_backend', { 
+                    action: 'update_indicator', 
+                    data: { 
+                        indicator: indicatorName,
+                        ind_type: meta.indType,
+                        owner_id: meta.ownerId,
+                        params: newParams
+                    } 
+                });
+            }
+        }
+    },
     // Aliases for Rust backend consistency
     set_series_data: (targetChart, cmd) => CommandHandlers.set_data(targetChart, cmd),
     update_series_data: (targetChart, cmd) => CommandHandlers.update_data(targetChart, cmd)
 };
 
 CommandQueue.processCommandSync = CommandQueue.processCommandSync.bind(CommandQueue);
-// window.CommandHandlers = CommandHandlers; 
-// window.handleCommand = handleCommand;
-// window.hideLoader = hideLoader;
+window.CommandHandlers = CommandHandlers; 
+window.handleCommand = handleCommand;
+window.hideLoader = hideLoader;
 
 // Final Initialization moved to entry.js
