@@ -207,6 +207,28 @@ impl Series {
         cmd.options = Some(options);
         Ok(serde_json::to_string(&cmd).unwrap())
     }
+
+    pub fn remove_indicator(&mut self, target_sid: &str) -> Vec<String> {
+        let mut removed = Vec::new();
+        let mut to_keep = Vec::new();
+        
+        for config in self.indicators.drain(..) {
+            if config.target_series_id == target_sid {
+                removed.push(config.target_series_id.clone());
+                for id in config.extra_target_ids.values() {
+                    removed.push(id.clone());
+                }
+            } else {
+                to_keep.push(config);
+            }
+        }
+        self.indicators = to_keep;
+
+        for id in &removed {
+            self.indicator_states.remove(id);
+        }
+        removed
+    }
 }
 
 #[cfg(feature = "python-bridge")]
@@ -264,6 +286,11 @@ impl Series {
     #[pyo3(name = "set_auto_volume")]
     pub fn py_set_auto_volume(&mut self, enabled: bool) {
         self.auto_volume_enabled = enabled;
+    }
+
+    #[pyo3(name = "remove_indicator")]
+    pub fn py_remove_indicator(&mut self, target_sid: String) -> Vec<String> {
+        self.remove_indicator(&target_sid)
     }
 }
 
@@ -379,7 +406,7 @@ impl Chart {
         let pane_id = if is_osc { Some(format!("pane_{}", Uuid::new_v4().to_string().split_at(8).0)) } else { None };
 
         // 1. Generate IDs first so we can use main_id for grouping
-        for (role, label, _color) in &sub_info {
+        for (role, _label, _color) in &sub_info {
             let sid = format!("{}_{}", role, Uuid::new_v4().to_string().split_at(8).0);
             if *role == "main" { main_id = sid.clone(); }
             else { ids.insert(role.to_string(), sid.clone()); }
@@ -387,18 +414,36 @@ impl Chart {
 
         // Generate descriptive group name (e.g., SMA(14) or MACD(12, 26, 9))
         let type_label = ind_type_str.replace('"', "").to_uppercase();
+        let display_type = match ind_type_str.replace('"', "").to_lowercase().as_str() {
+            "sma" => "SMA",
+            "ema" => "EMA",
+            "rsi" => "RSI",
+            "macd" => "MACD",
+            "bbands" | "bollinger" | "bollingerbands" => "Bollinger Bands",
+            "atr" => "ATR",
+            "stoch" | "stochastic" => "Stochastic",
+            "cci" => "CCI",
+            _ => &type_label,
+        };
+
         let group_name = if params.is_empty() {
-            type_label.clone()
+            display_type.to_string()
         } else {
-            // Sort by key to have a deterministic order
-            let mut keys: Vec<&String> = params.keys().collect();
+            // Sort by key to have a deterministic order, filtering out cosmetic/internal params
+            let mut keys: Vec<&String> = params.keys()
+                .filter(|k| *k != "color" && *k != "owner_id")
+                .collect();
             keys.sort();
             let p_vals: Vec<String> = keys.iter().map(|k| {
                 let v = params.get(*k).unwrap();
                 if v.is_string() { v.as_str().unwrap().to_string() }
                 else { v.to_string() }
             }).collect();
-            format!("{}({})", type_label, p_vals.join(", "))
+            if p_vals.is_empty() {
+                display_type.to_string()
+            } else {
+                format!("{}({})", display_type, p_vals.join(", "))
+            }
         };
 
         // 2. Create commands with grouping
@@ -421,16 +466,42 @@ impl Chart {
             
             // Add grouping metadata for the legend
             cmd.extra.insert("indicator".to_string(), json!(main_id));
-            cmd.extra.insert("indicator_type_name".to_string(), json!(group_name));
-            cmd.extra.insert("human_name".to_string(), json!(series_label));
+            cmd.extra.insert("indicatorTypeName".to_string(), json!(group_name));
+            cmd.extra.insert("humanName".to_string(), json!(series_label));
             
             if role == "main" {
                 cmd.extra.insert("indicatorParams".to_string(), json!(params));
                 cmd.extra.insert("indicatorMetadata".to_string(), indicators::get_indicator_params_schema(ind_type));
+                cmd.extra.insert("ind_type".to_string(), json!(ind_type_str));
+                cmd.extra.insert("owner_id".to_string(), json!(source_sid));
             }
 
+            // 3. Resolve Color with Rotation
+            let palette = [
+                "#2196F3", "#FF9800", "#E91E63", "#4CAF50", "#9C27B0",
+                "#00BCD4", "#FFC107", "#009688", "#673AB7", "#3F51B5",
+                "#8BC34A", "#FF5722", "#607D8B", "#F44336", "#03A9F4",
+                "#CDDC39", "#795548", "#9E9E9E", "#FF4081", "#00E676",
+                "#651FFF", "#AEEA00", "#FFD600", "#FF6E40", "#18FFFF",
+                "#76FF03", "#D4E157", "#FFA726", "#26C6DA", "#AB47BC",
+                "#FF7043", "#5C6BC0", "#26A69A", "#D4E157", "#FFEE58",
+                "#BDBDBD", "#90A4AE", "#ec407a", "#7e57c2", "#26c6da"
+            ];
+            
+            let final_color = if let Some(c) = params.get("color").and_then(|v| v.as_str()) {
+                c.to_string()
+            } else if role == "main" {
+                // Count existing indicators of same type to rotate color
+                let count = if let Some(source) = self.series.get(&source_sid) {
+                    source.indicators.iter().filter(|i| i.indicator_type == ind_type).count()
+                } else { 0 };
+                palette[count % palette.len()].to_string()
+            } else {
+                color.to_string()
+            };
+
             let mut options = json!({
-                "color": color,
+                "color": final_color,
                 "lineWidth": if ind_type_str == "sma" || ind_type_str == "ema" { 2 } else { 1 },
                 "priceLineVisible": false
             });
@@ -462,10 +533,19 @@ impl Chart {
             }
         }
 
+        let mut final_cmds = creations;
+        for cmd_str in data_cmds {
+            for single_cmd in cmd_str.split('\n') {
+                if !single_cmd.is_empty() {
+                    final_cmds.push(single_cmd.to_string());
+                }
+            }
+        }
+
         let res = json!({
             "mainId": main_id,
             "extraIds": ids,
-            "commands": creations.into_iter().chain(data_cmds.into_iter()).collect::<Vec<_>>()
+            "commands": final_cmds
         });
 
         Ok(res.to_string())
@@ -485,6 +565,22 @@ impl Chart {
         let s = self.series.get_mut(&sid).ok_or("Series not found")?;
         s.auto_volume_enabled = enabled;
         Ok(())
+    }
+
+    pub fn remove_series(&mut self, sid: &str) {
+        self.series.remove(sid);
+    }
+
+    pub fn remove_indicator(&mut self, target_sid: &str) -> Vec<String> {
+        let mut all_removed = Vec::new();
+        for s in self.series.values_mut() {
+            all_removed.extend(s.remove_indicator(target_sid));
+        }
+        
+        for id in &all_removed {
+            self.series.remove(id);
+        }
+        all_removed
     }
 }
 
@@ -566,5 +662,15 @@ impl Chart {
     #[pyo3(name = "create_histogram_series")]
     pub fn py_create_histogram_series(&mut self, name: String, chart_id: String) -> PyResult<(String, String)> {
         self.create_histogram_series(name, chart_id).map_err(|e| pyo3::exceptions::PyValueError::new_err(e))
+    }
+
+    #[pyo3(name = "remove_series")]
+    pub fn py_remove_series(&mut self, sid: String) {
+        self.remove_series(&sid);
+    }
+
+    #[pyo3(name = "remove_indicator")]
+    pub fn py_remove_indicator(&mut self, target_sid: String) -> Vec<String> {
+        self.remove_indicator(&target_sid)
     }
 }

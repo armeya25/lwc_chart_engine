@@ -56,6 +56,25 @@ pub enum IndicatorType {
     WilliamsR,
 }
 
+impl IndicatorType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            IndicatorType::Sma => "sma",
+            IndicatorType::Ema => "ema",
+            IndicatorType::Dema => "dema",
+            IndicatorType::Tema => "tema",
+            IndicatorType::Rsi => "rsi",
+            IndicatorType::Macd => "macd",
+            IndicatorType::BollingerBands => "bollingerbands",
+            IndicatorType::Atr => "atr",
+            IndicatorType::Stochastic => "stochastic",
+            IndicatorType::Cci => "cci",
+            IndicatorType::Vwap => "vwap",
+            IndicatorType::WilliamsR => "williamsr",
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct IndicatorConfig {
     pub indicator_type: IndicatorType,

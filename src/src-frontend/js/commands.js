@@ -79,30 +79,69 @@ export function handleCommand(cmd) {
 };
 
 // --- Helper for Multiple Indicator Panes ---
-function ensurePaneLayout(chart, targetPaneId) {
-    // Collect all active indicator panes (scales that start with pane_)
-    const seriesSet = window.seriesMap.values();
-    const panes = new Set();
-    for (const s of seriesSet) {
-        const sid = s.options().priceScaleId;
-        if (sid && sid.startsWith('pane_')) panes.add(sid);
-    }
-    panes.add(targetPaneId); // Ensure the one we are creating is counted
+function ensurePaneLayout(chart, targetPaneId = null) {
+    if (!chart) return;
 
-    const numPanes = panes.size;
-    const paneHeight = 0.20; // 20% per indicator
+    // 1. Identify which chart this is (find chartId)
+    let chartId = null;
+    for (let [id, c] of window.charts.entries()) {
+        if (c === chart) { chartId = id; break; }
+    }
+    
+    // Fallback search if chartId is not immediately resolved
+    if (!chartId) {
+        chartId = window.currentChartId || Array.from(window.charts.keys())[0];
+    }
+    if (!chartId) return;
+
+    // 2. Collect visible panes SPECIFIC to this chart
+    const seriesOnChart = window.chartSeriesMap.get(chartId) || new Set();
+    const visiblePanes = new Set();
+    const allPanesOnChart = new Set();
+
+    seriesOnChart.forEach(sid => {
+        const series = window.seriesMap.get(sid);
+        if (series) {
+            const options = series.options();
+            const pid = options.priceScaleId;
+            if (pid && pid.startsWith('pane_')) {
+                allPanesOnChart.add(pid);
+                if (options.visible !== false) visiblePanes.add(pid);
+            }
+        }
+    });
+    
+    // If we are currently adding a new series, its pane should be counted
+    if (targetPaneId) {
+        visiblePanes.add(targetPaneId);
+        allPanesOnChart.add(targetPaneId);
+    }
+
+    const numPanes = visiblePanes.size;
+    
+    // 3. Rebalance layout
+    if (numPanes === 0) {
+        chart.priceScale('right').applyOptions({
+            scaleMargins: { top: 0.1, bottom: 0.1 }
+        });
+        // Zero-out any orphaned panes on this chart
+        allPanesOnChart.forEach(pid => {
+            chart.priceScale(pid).applyOptions({ scaleMargins: { top: 2, bottom: 0 } });
+        });
+        return;
+    }
+
+    const paneHeight = 0.20; 
     const totalIndicatorHeight = Math.min(0.5, numPanes * paneHeight);
     const priceHeight = 1.0 - totalIndicatorHeight;
 
-    // Update Main Price Scale (right)
     chart.priceScale('right').applyOptions({
         scaleMargins: { top: 0.1, bottom: totalIndicatorHeight + 0.05 }
     });
 
-    // Distribute indicators in the bottom area
-    const paneList = Array.from(panes).sort();
+    const paneList = Array.from(visiblePanes).sort();
     paneList.forEach((pid, idx) => {
-        const bottomOffset = (numPanes - 1 - idx) * paneHeight;
+        const bottomOffset = (numPanes - 1 - idx) * (totalIndicatorHeight / numPanes);
         chart.priceScale(pid).applyOptions({
             scaleMargins: { 
                 top: priceHeight + (idx * (totalIndicatorHeight / numPanes)) + 0.02, 
@@ -111,9 +150,17 @@ function ensurePaneLayout(chart, targetPaneId) {
             borderVisible: false
         });
     });
+
+    // Ensure hidden panes don't take space
+    allPanesOnChart.forEach(pid => {
+        if (!visiblePanes.has(pid)) {
+            chart.priceScale(pid).applyOptions({ scaleMargins: { top: 2, bottom: 0 } });
+        }
+    });
 }
 
 export const CommandHandlers = {
+    ensurePaneLayout: (chart, targetPaneId) => ensurePaneLayout(chart, targetPaneId),
     configure_chart: (targetChart, cmd) => { if (targetChart) targetChart.applyOptions(cmd.data); },
     set_layout: (_targetChart, cmd) => { 
         const type = cmd.layout || cmd.data?.type || 'single';
@@ -135,14 +182,24 @@ export const CommandHandlers = {
         if (!window.chartSeriesMap.has(chartId)) window.chartSeriesMap.set(chartId, new Set());
         window.chartSeriesMap.get(chartId).add(sid);
         
-        if (cmd.indicator) {
-            window.indicatorsMetadata.set(cmd.indicator, {
-                sid, chartId, params: cmd.indicatorParams, metadata: cmd.indicatorMetadata || (cmd.extra ? cmd.extra.indicatorMetadata : null), type: 'line'
+        const extra = cmd.extra || {};
+        const indicatorId = cmd.indicator || extra.indicator;
+        
+        if (indicatorId) {
+            window.indicatorsMetadata.set(indicatorId, {
+                sid, 
+                chartId, 
+                params: extra.indicatorParams || cmd.indicatorParams || {}, 
+                metadata: extra.indicatorMetadata || cmd.indicatorMetadata || {}, 
+                ownerId: extra.owner_id || cmd.owner_id,
+                indType: extra.ind_type || cmd.ind_type,
+                type: 'line'
             });
         }
-        const humanName = cmd.extra ? cmd.extra.human_name : cmd.name;
-        const indicatorTypeName = cmd.extra ? cmd.extra.indicator_type_name : null;
-        window.addLegendItem(sid, cmd.name, cmd.options.color, 'line', cmd.indicator, humanName, indicatorTypeName);
+        const humanName = extra.humanName || extra.human_name || cmd.humanName || cmd.name;
+        const indicatorTypeName = extra.indicatorTypeName || extra.indicator_type_name || cmd.indicatorTypeName;
+        window.addLegendItem(sid, cmd.name, cmd.options.color, 'line', indicatorId, humanName, indicatorTypeName);
+        console.info(`[Chart] Created Indicator Series: ${sid} for ${indicatorId || 'Overlay'}`);
     },
     create_area_series: (targetChart, cmd, chartId) => {
         if (!targetChart) return;
@@ -158,8 +215,8 @@ export const CommandHandlers = {
         window.seriesMap.set(sid, series);
         if (!window.chartSeriesMap.has(chartId)) window.chartSeriesMap.set(chartId, new Set());
         window.chartSeriesMap.get(chartId).add(sid);
-        const humanName = cmd.extra ? cmd.extra.human_name : cmd.name;
-        const indicatorTypeName = cmd.extra ? cmd.extra.indicator_type_name : null;
+        const humanName = cmd.humanName || (cmd.extra ? (cmd.extra.humanName || cmd.extra.human_name) : cmd.name);
+        const indicatorTypeName = cmd.indicatorTypeName || (cmd.extra ? (cmd.extra.indicatorTypeName || cmd.extra.indicator_type_name) : null);
         window.addLegendItem(sid, cmd.name, cmd.options.lineColor || cmd.options.topColor, 'area', cmd.indicator, humanName, indicatorTypeName);
     },
     create_segmented_line: (_targetChart, cmd) => {
@@ -208,11 +265,18 @@ export const CommandHandlers = {
         window.seriesMap.set(sid, series);
         if (!window.chartSeriesMap.has(chartId)) window.chartSeriesMap.set(chartId, new Set());
         window.chartSeriesMap.get(chartId).add(sid);
-        const humanName = cmd.extra ? cmd.extra.human_name : cmd.name;
-        const indicatorTypeName = cmd.extra ? cmd.extra.indicator_type_name : null;
+        const humanName = cmd.humanName || (cmd.extra ? (cmd.extra.humanName || cmd.extra.human_name) : cmd.name);
+        const indicatorTypeName = cmd.indicatorTypeName || (cmd.extra ? (cmd.extra.indicatorTypeName || cmd.extra.indicator_type_name) : null);
         if (cmd.indicator) {
+            const extra = cmd.extra || {};
             window.indicatorsMetadata.set(cmd.indicator, {
-                sid, chartId, params: cmd.indicatorParams, metadata: cmd.extra ? cmd.extra.indicatorMetadata : null, type: 'candle'
+                sid, 
+                chartId, 
+                params: extra.indicatorParams || cmd.indicatorParams || {}, 
+                metadata: extra.indicatorMetadata || cmd.indicatorMetadata || {}, 
+                ownerId: extra.owner_id || cmd.owner_id,
+                indType: extra.ind_type || cmd.ind_type,
+                type: 'candle'
             });
         }
         window.addLegendItem(sid, cmd.name, cmd.options.upColor, 'candle', cmd.indicator, humanName, indicatorTypeName);
@@ -231,36 +295,59 @@ export const CommandHandlers = {
         window.seriesMap.set(sid, series);
         if (!window.chartSeriesMap.has(chartId)) window.chartSeriesMap.set(chartId, new Set());
         window.chartSeriesMap.get(chartId).add(sid);
-        const humanName = cmd.extra ? cmd.extra.human_name : cmd.name;
-        const indicatorTypeName = cmd.extra ? cmd.extra.indicator_type_name : null;
+        const humanName = cmd.humanName || (cmd.extra ? (cmd.extra.humanName || cmd.extra.human_name) : cmd.name);
+        const indicatorTypeName = cmd.indicatorTypeName || (cmd.extra ? (cmd.extra.indicatorTypeName || cmd.extra.indicator_type_name) : null);
         if (cmd.indicator) {
+            const extra = cmd.extra || {};
             window.indicatorsMetadata.set(cmd.indicator, {
-                sid, chartId, params: cmd.indicatorParams, metadata: cmd.extra ? cmd.extra.indicatorMetadata : null, type: 'histogram'
+                sid, 
+                chartId, 
+                params: extra.indicatorParams || cmd.indicatorParams || {}, 
+                metadata: extra.indicatorMetadata || cmd.indicatorMetadata || {}, 
+                ownerId: extra.owner_id || cmd.owner_id,
+                indType: extra.ind_type || cmd.ind_type,
+                type: 'histogram'
             });
         }
         window.addLegendItem(sid, cmd.name, cmd.options.color, 'histogram', cmd.indicator, humanName, indicatorTypeName);
     },
-    set_data: (_targetChart, cmd) => {
+    set_series_data: (_targetChart, cmd) => {
         const sid = getSId(cmd);
         const series = window.seriesMap.get(sid);
         if (series) {
+            // Update legend metadata if provided
+            const humanName = cmd.humanName || (cmd.extra ? (cmd.extra.humanName || cmd.extra.human_name) : null);
+            const indicatorTypeName = cmd.indicatorTypeName || (cmd.extra ? (cmd.extra.indicatorTypeName || cmd.extra.indicator_type_name) : (cmd.indicatorType || (cmd.extra ? cmd.extra.indicator_type : null)));
+            if (cmd.indicator || humanName || indicatorTypeName) {
+                window.addLegendItem(sid, cmd.name || sid, null, null, cmd.indicator, humanName, indicatorTypeName);
+            }
+
             // If this series has a segmented plugin, update it too
             if (series._segmentedPlugin) {
                 series._segmentedPlugin.setData(cmd.data);
             }
             
             // Auto-fallback: if it's a line/area series and data has no 'value', use 'close'
-            const processedData = cmd.data.map(item => {
-                if (item.value === undefined && item.close !== undefined) {
-                    return { ...item, value: item.close };
-                }
-                return item;
-            });
+            const processedData = (cmd.data || []).map(item => {
+                let val = item.value;
+                if (val === undefined && item.close !== undefined) val = item.close;
+                return { ...item, value: val };
+            }).filter(item => item.value !== null && !isNaN(item.value));
+
             series.setData(processedData);
-            if (_targetChart && cmd.data.length > 5) _targetChart.timeScale().fitContent();
+            
+            // Aggressive Rebalance: If this is an indicator pane, force a layout check
+            const pid = series.options().priceScaleId;
+            if (pid && pid.startsWith('pane_')) {
+                ensurePaneLayout(_targetChart || window.charts.values().next().value);
+            }
+
+            if (_targetChart && cmd.data && cmd.data.length > 5) _targetChart.timeScale().fitContent();
             if (typeof BoxManager !== 'undefined') BoxManager.updatePositions();
             if (typeof PositionToolManager !== 'undefined') PositionToolManager.updatePositions();
             if (typeof LineToolManager !== 'undefined') LineToolManager.updatePositions();
+        } else {
+            console.warn(`[JS] set_series_data: Series NOT found: ${sid}`);
         }
     },
     set_volume_data: (targetChart, cmd, chartId) => {
@@ -311,10 +398,16 @@ export const CommandHandlers = {
             });
         }
     },
-    update_data: (_targetChart, cmd) => {
+    update_series_data: (_targetChart, cmd) => {
         const sid = getSId(cmd);
         const series = window.seriesMap.get(sid);
         if (series) {
+            // Update legend metadata if provided
+            const humanName = cmd.humanName || (cmd.extra ? (cmd.extra.humanName || cmd.extra.human_name) : null);
+            const indicatorTypeName = cmd.indicatorTypeName || (cmd.extra ? (cmd.extra.indicatorTypeName || cmd.extra.indicator_type_name) : (cmd.indicatorType || (cmd.extra ? cmd.extra.indicator_type : null)));
+            if (cmd.indicator || humanName || indicatorTypeName) {
+                window.addLegendItem(sid, cmd.name || sid, null, null, cmd.indicator, humanName, indicatorTypeName);
+            }
             try {
                 series.update(cmd.data);
             } catch (e) {
@@ -523,15 +616,35 @@ export const CommandHandlers = {
             }
         }
     },
-    remove_indicator: (_targetChart, indicatorName) => {
+    remove_indicator: (chart, arg) => {
+        let indicatorName = null;
+        if (typeof chart === 'string') {
+            // Called from UI: remove_indicator(name)
+            indicatorName = chart;
+        } else {
+            // Called from Dispatcher: remove_indicator(chart, cmd/name)
+            indicatorName = typeof arg === 'string' ? arg : (arg ? arg.indicator : null);
+        }
+        
+        if (!indicatorName) return;
+
         const group = document.getElementById(`legend-group-${indicatorName}`);
         if (group) {
+            const sids = new Set();
+            
+            // 1. Collect main series ID
+            if (group.dataset.mainSid) sids.add(group.dataset.mainSid);
+            
+            // 2. Collect all sub-item series IDs
             const groupContent = group.querySelector('.legend-group-content');
-            const items = Array.from(groupContent.querySelectorAll('.legend-sub-item'));
-            items.forEach(item => {
-                const sid = item.dataset.seriesId;
-                // Reuse remove_series logic manually or find the targetChart
-                // For simplicity, we can just call removal on all charts
+            if (groupContent) {
+                groupContent.querySelectorAll('.legend-sub-item').forEach(item => {
+                    if (item.dataset.seriesId) sids.add(item.dataset.seriesId);
+                });
+            }
+            
+            // 3. Remove all series from all charts
+            sids.forEach(sid => {
                 window.charts.forEach(chart => {
                     const series = window.seriesMap.get(sid);
                     if (series) {
@@ -540,13 +653,39 @@ export const CommandHandlers = {
                 });
                 window.seriesMap.delete(sid);
                 window.chartSeriesMap.forEach(sSet => sSet.delete(sid));
-                item.remove();
             });
-            group.remove();
+
+            // 4. Notify Backend
+            const invoke = window.__TAURI__ ? (window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.invoke) : (window.pywebview ? window.pywebview.api.emit_to_backend : null);
+            if (invoke) {
+                invoke('emit_to_backend', { 
+                    action: 'remove_indicator', 
+                    data: { indicator: indicatorName } 
+                });
+            }
+
+            if (group) {
+                group.remove();
+                // 5. Re-balance layout for all charts to reclaim space
+                window.charts.forEach(chart => {
+                    if (window.CommandHandlers.ensurePaneLayout) {
+                        window.CommandHandlers.ensurePaneLayout(chart);
+                    }
+                });
+            }
         }
     },
-    open_indicator_settings: (_targetChart, indicatorName) => {
-        if (window.showIndicatorSettings) {
+    open_indicator_settings: (chart, arg) => {
+        let indicatorName = null;
+        if (typeof chart === 'string') {
+            // Called from UI: open_indicator_settings(name)
+            indicatorName = chart;
+        } else {
+            // Called from Dispatcher: open_indicator_settings(chart, cmd/name)
+            indicatorName = typeof arg === 'string' ? arg : (arg ? arg.indicator : null);
+        }
+
+        if (indicatorName && window.showIndicatorSettings) {
             window.showIndicatorSettings(indicatorName);
         }
     },
@@ -560,30 +699,42 @@ export const CommandHandlers = {
             indType: data.ind_type
         });
     },
-    update_indicator: (_targetChart, indicatorName, newParams) => {
-        const meta = window.indicatorsMetadata.get(indicatorName);
-        if (meta) {
-            // Update local params
-            meta.params = newParams;
-            
-            // Emit to Python backend
-            const invoke = window.__TAURI__ ? window.__TAURI__.invoke : (window.pywebview ? window.pywebview.api.emit_to_backend : null);
-            if (invoke) {
-                invoke('emit_to_backend', { 
-                    action: 'update_indicator', 
-                    data: { 
-                        indicator: indicatorName,
-                        ind_type: meta.indType,
-                        owner_id: meta.ownerId,
-                        params: newParams
-                    } 
-                });
+    update_indicator: (_targetChart, arg1, arg2) => {
+        let indicatorName = null;
+        let newParams = null;
+
+        if (typeof arg1 === 'string') {
+            // Called from UI: update_indicator(name, params)
+            indicatorName = arg1;
+            newParams = arg2;
+        } else if (arg1 && arg1.indicator) {
+            // Called from Dispatcher: update_indicator(chart, cmd)
+            indicatorName = arg1.indicator;
+            newParams = arg1.params;
+        }
+
+        if (indicatorName && newParams) {
+            const meta = window.indicatorsMetadata.get(indicatorName);
+            if (meta) {
+                // Update local params
+                meta.params = newParams;
+                
+                // Emit to Python backend
+                const invoke = window.__TAURI__ ? window.__TAURI__.invoke : (window.pywebview ? window.pywebview.api.emit_to_backend : null);
+                if (invoke) {
+                    invoke('emit_to_backend', { 
+                        action: 'update_indicator', 
+                        data: { 
+                            indicator: indicatorName,
+                            ind_type: meta.indType,
+                            owner_id: meta.ownerId,
+                            params: newParams
+                        } 
+                    });
+                }
             }
         }
-    },
-    // Aliases for Rust backend consistency
-    set_series_data: (targetChart, cmd) => CommandHandlers.set_data(targetChart, cmd),
-    update_series_data: (targetChart, cmd) => CommandHandlers.update_data(targetChart, cmd)
+    }
 };
 
 CommandQueue.processCommandSync = CommandQueue.processCommandSync.bind(CommandQueue);

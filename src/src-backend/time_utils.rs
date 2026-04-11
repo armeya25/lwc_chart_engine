@@ -278,3 +278,37 @@ pub fn process_polars_data(df: DataFrame) -> PolarsResult<DataFrame> {
     // 4. Preserve Nulls/NaNs to allow for gaps in charts (standard financial behavior)
     Ok(df)
 }
+
+pub fn df_to_json_list(df: &DataFrame) -> Result<Vec<serde_json::Value>, String> {
+    let time_s = df.column("time").map_err(|e| e.to_string())?.cast(&DataType::Int64).map_err(|e| e.to_string())?;
+    let time = time_s.i64().map_err(|e| e.to_string())?;
+    
+    let value_s = df.column("value").map_err(|e| e.to_string())?.cast(&DataType::Float64).map_err(|e| e.to_string())?;
+    let value = value_s.f64().map_err(|e| e.to_string())?;
+    
+    let mut list = Vec::with_capacity(df.height());
+    for i in 0..df.height() {
+        if let (Some(t), Some(v)) = (time.get(i), value.get(i)) {
+            list.push(serde_json::json!({ "time": t, "value": v }));
+        }
+    }
+    Ok(list)
+}
+
+pub fn df_to_json_list_colored(df: &DataFrame) -> Result<Vec<serde_json::Value>, String> {
+    let time_s = df.column("time").map_err(|e| e.to_string())?.cast(&DataType::Int64).map_err(|e| e.to_string())?;
+    let time = time_s.i64().map_err(|e| e.to_string())?;
+    
+    let value_s = df.column("value").map_err(|e| e.to_string())?.cast(&DataType::Float64).map_err(|e| e.to_string())?;
+    let value = value_s.f64().map_err(|e| e.to_string())?;
+    
+    let color = df.column("color").map_err(|e| e.to_string())?.str().map_err(|e| e.to_string())?;
+    
+    let mut list = Vec::with_capacity(df.height());
+    for i in 0..df.height() {
+        if let (Some(t), Some(v), Some(c)) = (time.get(i), value.get(i), color.get(i)) {
+            list.push(serde_json::json!({ "time": t, "value": v, "color": c }));
+        }
+    }
+    Ok(list)
+}

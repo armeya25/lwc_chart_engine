@@ -1,4 +1,5 @@
 use crate::types::{IndicatorConfig, IndicatorType, Point, IndicatorState};
+use crate::time_utils;
 use polars::prelude::*;
 use serde_json::json;
 use polars::series::ops::NullBehavior;
@@ -9,6 +10,7 @@ use polars::prelude::RollingOptionsFixedWindow;
 pub fn calculate_batch(config: &IndicatorConfig, df: &DataFrame) -> Result<String, String> {
     let period = config.params.get("period").and_then(|v| v.as_u64()).unwrap_or(14) as usize;
     let df_lazy = df.clone().lazy();
+    let ind_type_str = Some(config.indicator_type.as_str());
 
     match config.indicator_type {
         IndicatorType::Sma => {
@@ -17,7 +19,7 @@ pub fn calculate_batch(config: &IndicatorConfig, df: &DataFrame) -> Result<Strin
                     window_size: period, min_periods: period, ..Default::default()
                 }).alias("value"))
                 .collect().map_err(|e| e.to_string())?;
-            df_to_set_data_cmd(&res_df, &config.target_series_id, &config.chart_id)
+            df_to_set_data_cmd(&res_df, &config.target_series_id, &config.chart_id, Some(&config.target_series_id), ind_type_str)
         },
 
         IndicatorType::Ema => {
@@ -27,7 +29,7 @@ pub fn calculate_batch(config: &IndicatorConfig, df: &DataFrame) -> Result<Strin
                     min_periods: period, ignore_nulls: true,
                 }).alias("value"))
                 .collect().map_err(|e| e.to_string())?;
-            df_to_set_data_cmd(&res_df, &config.target_series_id, &config.chart_id)
+            df_to_set_data_cmd(&res_df, &config.target_series_id, &config.chart_id, Some(&config.target_series_id), ind_type_str)
         },
 
         IndicatorType::Rsi => {
@@ -43,7 +45,7 @@ pub fn calculate_batch(config: &IndicatorConfig, df: &DataFrame) -> Result<Strin
                 ])
                 .with_column((lit(100.0) - (lit(100.0) / (lit(1.0) + col("avg_gain") / col("avg_loss")))).alias("value"))
                 .collect().map_err(|e| e.to_string())?;
-            df_to_set_data_cmd(&res_df, &config.target_series_id, &config.chart_id)
+            df_to_set_data_cmd(&res_df, &config.target_series_id, &config.chart_id, Some(&config.target_series_id), ind_type_str)
         },
 
         IndicatorType::Macd => {
@@ -59,17 +61,17 @@ pub fn calculate_batch(config: &IndicatorConfig, df: &DataFrame) -> Result<Strin
                 .with_column(col("value").ewm_mean(EWMOptions { alpha: 2.0 / (signal as f64 + 1.0), adjust: false, bias: false, min_periods: signal, ignore_nulls: true }).alias("signal_val"))
                 .with_column((col("value") - col("signal_val")).alias("hist_val"))
                 .collect().map_err(|e| e.to_string())?;
-            let mut commands = vec![df_to_set_data_cmd(&res_df, &config.target_series_id, &config.chart_id)?];
+            let mut commands = vec![df_to_set_data_cmd(&res_df, &config.target_series_id, &config.chart_id, Some(&config.target_series_id), ind_type_str)?];
             if let Some(sid) = config.extra_target_ids.get("signal") {
                 let sig_df = res_df.clone().lazy().select([col("time"), col("signal_val").alias("value")]).collect().unwrap();
-                commands.push(df_to_set_data_cmd(&sig_df, sid, &config.chart_id)?);
+                commands.push(df_to_set_data_cmd(&sig_df, sid, &config.chart_id, Some(&config.target_series_id), ind_type_str)?);
             }
             if let Some(sid) = config.extra_target_ids.get("hist") {
                 let hist_df = res_df.lazy().select([
                     col("time"), col("hist_val").alias("value"),
-                    when(col("hist_val").gt_eq(0.0)).then(lit("rgba(38, 166, 154, 0.5)")).otherwise(lit("rgba(239, 83, 80, 0.5)")).alias("color")
+                    when(col("hist_val").gt_eq(0.0)).then(lit("rgba(38, 166, 154, 0.5)")).otherwise(lit( "rgba(239, 83, 80, 0.5)")).alias("color")
                 ]).collect().unwrap();
-                commands.push(df_to_set_data_cmd_colored(&hist_df, sid, &config.chart_id)?);
+                commands.push(df_to_set_data_cmd_colored(&hist_df, sid, &config.chart_id, Some(&config.target_series_id), ind_type_str)?);
             }
             Ok(commands.join("\n"))
         },
@@ -86,14 +88,14 @@ pub fn calculate_batch(config: &IndicatorConfig, df: &DataFrame) -> Result<Strin
                     (col("value") - lit(std_dev) * col("std")).alias("lower"),
                 ])
                 .collect().map_err(|e| e.to_string())?;
-            let mut commands = vec![df_to_set_data_cmd(&res_df, &config.target_series_id, &config.chart_id)?];
+            let mut commands = vec![df_to_set_data_cmd(&res_df, &config.target_series_id, &config.chart_id, Some(&config.target_series_id), ind_type_str)?];
             if let Some(sid) = config.extra_target_ids.get("upper") {
                 let up_df = res_df.clone().lazy().select([col("time"), col("upper").alias("value")]).collect().unwrap();
-                commands.push(df_to_set_data_cmd(&up_df, sid, &config.chart_id)?);
+                commands.push(df_to_set_data_cmd(&up_df, sid, &config.chart_id, Some(&config.target_series_id), ind_type_str)?);
             }
             if let Some(sid) = config.extra_target_ids.get("lower") {
                 let low_df = res_df.lazy().select([col("time"), col("lower").alias("value")]).collect().unwrap();
-                commands.push(df_to_set_data_cmd(&low_df, sid, &config.chart_id)?);
+                commands.push(df_to_set_data_cmd(&low_df, sid, &config.chart_id, Some(&config.target_series_id), ind_type_str)?);
             }
             Ok(commands.join("\n"))
         },
@@ -120,7 +122,7 @@ pub fn calculate_batch(config: &IndicatorConfig, df: &DataFrame) -> Result<Strin
                     window_size: period, min_periods: period, ..Default::default()
                 }).alias("value"))
                 .collect().map_err(|e| e.to_string())?;
-            df_to_set_data_cmd(&res_df, &config.target_series_id, &config.chart_id)
+            df_to_set_data_cmd(&res_df, &config.target_series_id, &config.chart_id, Some(&config.target_series_id), ind_type_str)
         },
 
         IndicatorType::Stochastic => {
@@ -141,10 +143,10 @@ pub fn calculate_batch(config: &IndicatorConfig, df: &DataFrame) -> Result<Strin
                     col("value").rolling_mean(RollingOptionsFixedWindow { window_size: smooth_d, min_periods: smooth_d, ..Default::default() }).alias("d_line") // %D
                 )
                 .collect().map_err(|e| e.to_string())?;
-            let mut commands = vec![df_to_set_data_cmd(&res_df, &config.target_series_id, &config.chart_id)?];
+            let mut commands = vec![df_to_set_data_cmd(&res_df, &config.target_series_id, &config.chart_id, Some(&config.target_series_id), ind_type_str)?];
             if let Some(sid) = config.extra_target_ids.get("d") {
                 let d_df = res_df.lazy().select([col("time"), col("d_line").alias("value")]).collect().unwrap();
-                commands.push(df_to_set_data_cmd(&d_df, sid, &config.chart_id)?);
+                commands.push(df_to_set_data_cmd(&d_df, sid, &config.chart_id, Some(&config.target_series_id), ind_type_str)?);
             }
             Ok(commands.join("\n"))
         },
@@ -159,7 +161,7 @@ pub fn calculate_batch(config: &IndicatorConfig, df: &DataFrame) -> Result<Strin
                 ])
                 .with_column(((col("tp") - col("sma_tp")) / (lit(0.015) * col("std_tp"))).alias("value"))
                 .collect().map_err(|e| e.to_string())?;
-            df_to_set_data_cmd(&res_df, &config.target_series_id, &config.chart_id)
+            df_to_set_data_cmd(&res_df, &config.target_series_id, &config.chart_id, Some(&config.target_series_id), ind_type_str)
         },
 
         IndicatorType::Vwap => {
@@ -172,7 +174,7 @@ pub fn calculate_batch(config: &IndicatorConfig, df: &DataFrame) -> Result<Strin
                 ])
                 .with_column((col("cum_tpv") / col("cum_vol")).alias("value"))
                 .collect().map_err(|e| e.to_string())?;
-            df_to_set_data_cmd(&res_df, &config.target_series_id, &config.chart_id)
+            df_to_set_data_cmd(&res_df, &config.target_series_id, &config.chart_id, Some(&config.target_series_id), ind_type_str)
         },
 
         IndicatorType::WilliamsR => {
@@ -184,7 +186,7 @@ pub fn calculate_batch(config: &IndicatorConfig, df: &DataFrame) -> Result<Strin
                 ])
                 .with_column((lit(-100.0) * (col("hh") - col("close")) / (col("hh") - col("ll"))).alias("value"))
                 .collect().map_err(|e| e.to_string())?;
-            df_to_set_data_cmd(&res_df, &config.target_series_id, &config.chart_id)
+            df_to_set_data_cmd(&res_df, &config.target_series_id, &config.chart_id, Some(&config.target_series_id), ind_type_str)
         },
 
         IndicatorType::Dema => {
@@ -195,7 +197,7 @@ pub fn calculate_batch(config: &IndicatorConfig, df: &DataFrame) -> Result<Strin
                 .with_column(col("ema1").ewm_mean(EWMOptions { alpha, adjust: false, bias: false, min_periods: period, ignore_nulls: true }).alias("ema2"))
                 .with_column((lit(2.0) * col("ema1") - col("ema2")).alias("value"))
                 .collect().map_err(|e| e.to_string())?;
-            df_to_set_data_cmd(&res_df, &config.target_series_id, &config.chart_id)
+            df_to_set_data_cmd(&res_df, &config.target_series_id, &config.chart_id, Some(&config.target_series_id), ind_type_str)
         },
 
         IndicatorType::Tema => {
@@ -207,7 +209,7 @@ pub fn calculate_batch(config: &IndicatorConfig, df: &DataFrame) -> Result<Strin
                 .with_column(col("ema2").ewm_mean(EWMOptions { alpha, adjust: false, bias: false, min_periods: period, ignore_nulls: true }).alias("ema3"))
                 .with_column((lit(3.0) * col("ema1") - lit(3.0) * col("ema2") + col("ema3")).alias("value"))
                 .collect().map_err(|e| e.to_string())?;
-            df_to_set_data_cmd(&res_df, &config.target_series_id, &config.chart_id)
+            df_to_set_data_cmd(&res_df, &config.target_series_id, &config.chart_id, Some(&config.target_series_id), ind_type_str)
         },
     }
 }
@@ -222,12 +224,13 @@ pub fn calculate_step(
 ) -> Result<(String, Option<IndicatorState>), String> {
     let period = config.params.get("period").and_then(|v| v.as_u64()).unwrap_or(14) as usize;
     if data.is_empty() { return Err("No data".to_string()); }
+    let ind_type_str = Some(config.indicator_type.as_str());
 
     match config.indicator_type {
         IndicatorType::Sma => {
             if data.len() < period { return Err("Insufficient data".to_string()); }
             let value = data.iter().rev().take(period).map(|p| p.close).sum::<f64>() / period as f64;
-            Ok((single_update_cmd(&config.target_series_id, point.time, value, &config.chart_id), Some(IndicatorState::Sma)))
+            Ok((single_update_cmd(&config.target_series_id, point.time, value, &config.chart_id, Some(&config.target_series_id), ind_type_str), Some(IndicatorState::Sma)))
         },
 
         IndicatorType::Ema => {
@@ -236,7 +239,7 @@ pub fn calculate_step(
                 Some(IndicatorState::Ema(prev)) => point.close * alpha + prev * (1.0 - alpha),
                 _ => { let mut e = data[0].close; for p in data { e = p.close * alpha + e * (1.0 - alpha); } e }
             };
-            Ok((single_update_cmd(&config.target_series_id, point.time, new_ema, &config.chart_id), Some(IndicatorState::Ema(new_ema))))
+            Ok((single_update_cmd(&config.target_series_id, point.time, new_ema, &config.chart_id, Some(&config.target_series_id), ind_type_str), Some(IndicatorState::Ema(new_ema))))
         },
 
         IndicatorType::Dema => {
@@ -254,7 +257,7 @@ pub fn calculate_step(
                 }
             };
             let value = 2.0 * ema1 - ema2;
-            Ok((single_update_cmd(&config.target_series_id, point.time, value, &config.chart_id), Some(IndicatorState::Dema { ema1, ema2 })))
+            Ok((single_update_cmd(&config.target_series_id, point.time, value, &config.chart_id, Some(&config.target_series_id), ind_type_str), Some(IndicatorState::Dema { ema1, ema2 })))
         },
 
         IndicatorType::Tema => {
@@ -277,7 +280,7 @@ pub fn calculate_step(
                 }
             };
             let value = 3.0 * ema1 - 3.0 * ema2 + ema3;
-            Ok((single_update_cmd(&config.target_series_id, point.time, value, &config.chart_id), Some(IndicatorState::Tema { ema1, ema2, ema3 })))
+            Ok((single_update_cmd(&config.target_series_id, point.time, value, &config.chart_id, Some(&config.target_series_id), ind_type_str), Some(IndicatorState::Tema { ema1, ema2, ema3 })))
         },
 
         IndicatorType::Rsi => {
@@ -303,7 +306,7 @@ pub fn calculate_step(
                 }
             };
             let value = if new_loss == 0.0 { 100.0 } else { 100.0 - 100.0 / (1.0 + new_gain / new_loss) };
-            Ok((single_update_cmd(&config.target_series_id, point.time, value, &config.chart_id), Some(IndicatorState::Rsi { avg_gain: new_gain, avg_loss: new_loss })))
+            Ok((single_update_cmd(&config.target_series_id, point.time, value, &config.chart_id, Some(&config.target_series_id), ind_type_str), Some(IndicatorState::Rsi { avg_gain: new_gain, avg_loss: new_loss })))
         },
 
         IndicatorType::Macd => {
@@ -329,11 +332,11 @@ pub fn calculate_step(
                 }
             };
             let macd_val = ef - es; let hist_val = macd_val - sig;
-            let mut cmds = vec![single_update_cmd(&config.target_series_id, point.time, macd_val, &config.chart_id)];
-            if let Some(sid) = config.extra_target_ids.get("signal") { cmds.push(single_update_cmd(sid, point.time, sig, &config.chart_id)); }
+            let mut cmds = vec![single_update_cmd(&config.target_series_id, point.time, macd_val, &config.chart_id, Some(&config.target_series_id), ind_type_str)];
+            if let Some(sid) = config.extra_target_ids.get("signal") { cmds.push(single_update_cmd(sid, point.time, sig, &config.chart_id, Some(&config.target_series_id), ind_type_str)); }
             if let Some(sid) = config.extra_target_ids.get("hist") {
                 let color = if hist_val >= 0.0 { "rgba(38, 166, 154, 0.5)" } else { "rgba(239, 83, 80, 0.5)" };
-                cmds.push(serde_json::to_string(&json!({"action":"update_series_data","chartId":&config.chart_id,"seriesId":sid,"data":{"time":point.time,"value":hist_val,"color":color}})).unwrap());
+                cmds.push(serde_json::to_string(&json!({"action":"update_series_data","chartId":&config.chart_id,"seriesId":sid,"indicator":&config.target_series_id,"indicatorType": ind_type_str, "data":{"time":point.time,"value":hist_val,"color":color}})).unwrap());
             }
             Ok((cmds.join("\n"), Some(IndicatorState::Macd { ema_fast: ef, ema_slow: es, signal: sig })))
         },
@@ -344,9 +347,9 @@ pub fn calculate_step(
             let closes: Vec<f64> = data.iter().rev().take(period).map(|p| p.close).collect();
             let mean = closes.iter().sum::<f64>() / period as f64;
             let std = (closes.iter().map(|&v| (v - mean).powi(2)).sum::<f64>() / period as f64).sqrt();
-            let mut cmds = vec![single_update_cmd(&config.target_series_id, point.time, mean, &config.chart_id)];
-            if let Some(sid) = config.extra_target_ids.get("upper") { cmds.push(single_update_cmd(sid, point.time, mean + std_mult * std, &config.chart_id)); }
-            if let Some(sid) = config.extra_target_ids.get("lower") { cmds.push(single_update_cmd(sid, point.time, mean - std_mult * std, &config.chart_id)); }
+            let mut cmds = vec![single_update_cmd(&config.target_series_id, point.time, mean, &config.chart_id, Some(&config.target_series_id), ind_type_str)];
+            if let Some(sid) = config.extra_target_ids.get("upper") { cmds.push(single_update_cmd(sid, point.time, mean + std_mult * std, &config.chart_id, Some(&config.target_series_id), ind_type_str)); }
+            if let Some(sid) = config.extra_target_ids.get("lower") { cmds.push(single_update_cmd(sid, point.time, mean - std_mult * std, &config.chart_id, Some(&config.target_series_id), ind_type_str)); }
             Ok((cmds.join("\n"), Some(IndicatorState::BollingerBands)))
         },
 
@@ -363,7 +366,7 @@ pub fn calculate_step(
                     (w[1].high - w[1].low).max((w[1].high - pc).abs()).max((w[1].low - pc).abs())
                 }).sum::<f64>() / period as f64,
             };
-            Ok((single_update_cmd(&config.target_series_id, point.time, new_atr, &config.chart_id), Some(IndicatorState::Atr(new_atr))))
+            Ok((single_update_cmd(&config.target_series_id, point.time, new_atr, &config.chart_id, Some(&config.target_series_id), ind_type_str), Some(IndicatorState::Atr(new_atr))))
         },
 
         IndicatorType::Stochastic => {
@@ -381,8 +384,8 @@ pub fn calculate_step(
                 Some(IndicatorState::Stochastic { d: pd, k: pk }) => (pk + pd * 2.0) / 3.0,
                 _ => k,
             };
-            let mut cmds = vec![single_update_cmd(&config.target_series_id, point.time, k, &config.chart_id)];
-            if let Some(sid) = config.extra_target_ids.get("d") { cmds.push(single_update_cmd(sid, point.time, d, &config.chart_id)); }
+            let mut cmds = vec![single_update_cmd(&config.target_series_id, point.time, k, &config.chart_id, Some(&config.target_series_id), ind_type_str)];
+            if let Some(sid) = config.extra_target_ids.get("d") { cmds.push(single_update_cmd(sid, point.time, d, &config.chart_id, Some(&config.target_series_id), ind_type_str)); }
             Ok((cmds.join("\n"), Some(IndicatorState::Stochastic { k, d })))
         },
 
@@ -393,7 +396,7 @@ pub fn calculate_step(
             let mean_tp = tps.iter().sum::<f64>() / period as f64;
             let mad = tps.iter().map(|&v| (v - mean_tp).abs()).sum::<f64>() / period as f64;
             let value = if mad < 1e-10 { 0.0 } else { (tp - mean_tp) / (0.015 * mad) };
-            Ok((single_update_cmd(&config.target_series_id, point.time, value, &config.chart_id), Some(IndicatorState::Cci)))
+            Ok((single_update_cmd(&config.target_series_id, point.time, value, &config.chart_id, Some(&config.target_series_id), ind_type_str), Some(IndicatorState::Cci)))
         },
 
         IndicatorType::WilliamsR => {
@@ -402,7 +405,7 @@ pub fn calculate_step(
             let hh = window.iter().map(|p| p.high).fold(f64::NEG_INFINITY, f64::max);
             let ll = window.iter().map(|p| p.low).fold(f64::INFINITY, f64::min);
             let value = if (hh - ll).abs() < 1e-10 { -50.0 } else { -100.0 * (hh - point.close) / (hh - ll) };
-            Ok((single_update_cmd(&config.target_series_id, point.time, value, &config.chart_id), Some(IndicatorState::WilliamsR)))
+            Ok((single_update_cmd(&config.target_series_id, point.time, value, &config.chart_id, Some(&config.target_series_id), ind_type_str), Some(IndicatorState::WilliamsR)))
         },
 
         IndicatorType::Vwap => {
@@ -419,15 +422,19 @@ pub fn calculate_step(
             let new_tpv = cum_tpv + tp * vol;
             let new_vol = cum_vol + vol;
             let value = if new_vol == 0.0 { tp } else { new_tpv / new_vol };
-            Ok((single_update_cmd(&config.target_series_id, point.time, value, &config.chart_id), Some(IndicatorState::Vwap { cum_tpv: new_tpv, cum_vol: new_vol })))
+            Ok((single_update_cmd(&config.target_series_id, point.time, value, &config.chart_id, Some(&config.target_series_id), ind_type_str), Some(IndicatorState::Vwap { cum_tpv: new_tpv, cum_vol: new_vol })))
         },
     }
 }
 
+pub fn get_indicator_schemas() -> String {
+    get_all_metadata_json()
+}
+
 pub fn get_all_metadata_json() -> String {
     json!({
-        "sma": {"period": {"type": "int", "min": 1, "max": 200, "default": 20}},
-        "ema": {"period": {"type": "int", "min": 1, "max": 200, "default": 20}},
+        "sma": {"period": {"type": "int", "min": 1, "max": 200, "default": 14}},
+        "ema": {"period": {"type": "int", "min": 1, "max": 200, "default": 14}},
         "rsi": {"period": {"type": "int", "min": 1, "max": 100, "default": 14}},
         "macd": {
             "fast": {"type": "int", "min": 1, "max": 100, "default": 12},
@@ -435,7 +442,7 @@ pub fn get_all_metadata_json() -> String {
             "signal": {"type": "int", "min": 1, "max": 50, "default": 9}
         },
         "bollingerbands": {
-            "period": {"type": "int", "min": 1, "max": 200, "default": 20},
+            "period": {"type": "int", "min": 1, "max": 200, "default": 14},
             "std_dev": {"type": "float", "min": 0.1, "max": 10.0, "step": 0.1, "default": 2.0}
         },
         "atr": {"period": {"type": "int", "min": 1, "max": 100, "default": 14}},
@@ -444,11 +451,11 @@ pub fn get_all_metadata_json() -> String {
             "smooth_k": {"type": "int", "min": 1, "max": 50, "default": 3},
             "smooth_d": {"type": "int", "min": 1, "max": 50, "default": 3}
         },
-        "cci": {"period": {"type": "int", "min": 1, "max": 100, "default": 20}},
+        "cci": {"period": {"type": "int", "min": 1, "max": 100, "default": 14}},
         "vwap": {},
         "williamsr": {"period": {"type": "int", "min": 1, "max": 100, "default": 14}},
-        "dema": {"period": {"type": "int", "min": 1, "max": 200, "default": 20}},
-        "tema": {"period": {"type": "int", "min": 1, "max": 200, "default": 20}}
+        "dema": {"period": {"type": "int", "min": 1, "max": 200, "default": 14}},
+        "tema": {"period": {"type": "int", "min": 1, "max": 200, "default": 14}}
     }).to_string()
 }
 
@@ -502,32 +509,37 @@ pub fn is_oscillator(ind_type: IndicatorType) -> bool {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-fn single_update_cmd(sid: &str, time: i64, value: f64, chart_id: &str) -> String {
-    serde_json::to_string(&json!({
-        "action": "update_series_data", "chartId": chart_id,
-        "seriesId": sid, "data": { "time": time, "value": value }
-    })).unwrap()
+fn single_update_cmd(sid: &str, time: i64, value: f64, chart_id: &str, indicator: Option<&str>, ind_type: Option<&str>) -> String {
+    let mut map = serde_json::Map::new();
+    map.insert("action".to_string(), json!("update_series_data"));
+    map.insert("chartId".to_string(), json!(chart_id));
+    map.insert("seriesId".to_string(), json!(sid));
+    map.insert("data".to_string(), json!({ "time": time, "value": value }));
+    if let Some(i) = indicator { map.insert("indicator".to_string(), json!(i)); }
+    if let Some(t) = ind_type  { map.insert("indicatorType".to_string(), json!(t)); }
+    serde_json::to_string(&json!(map)).unwrap()
 }
 
-fn df_to_set_data_cmd(df: &DataFrame, target_id: &str, chart_id: &str) -> Result<String, String> {
-    let times  = df.column("time").unwrap().i64().unwrap();
-    let values = df.column("value").unwrap().f64().unwrap();
-    let data: Vec<_> = (0..df.height()).filter_map(|i| {
-        let v = values.get(i)?;
-        if v.is_nan() { return None; }
-        Some(json!({ "time": times.get(i).unwrap(), "value": v }))
-    }).collect();
-    Ok(serde_json::to_string(&json!({ "action": "set_series_data", "chartId": chart_id, "seriesId": target_id, "data": data })).unwrap())
+fn df_to_set_data_cmd(df: &DataFrame, sid: &str, chart_id: &str, indicator: Option<&str>, ind_type: Option<&str>) -> Result<String, String> {
+    let data = time_utils::df_to_json_list(df)?;
+    let mut map = serde_json::Map::new();
+    map.insert("action".to_string(), json!("set_series_data"));
+    map.insert("chartId".to_string(), json!(chart_id));
+    map.insert("seriesId".to_string(), json!(sid));
+    map.insert("data".to_string(), json!(data));
+    if let Some(i) = indicator { map.insert("indicator".to_string(), json!(i)); }
+    if let Some(t) = ind_type  { map.insert("indicatorType".to_string(), json!(t)); }
+    Ok(serde_json::to_string(&json!(map)).unwrap())
 }
 
-fn df_to_set_data_cmd_colored(df: &DataFrame, target_id: &str, chart_id: &str) -> Result<String, String> {
-    let times  = df.column("time").unwrap().i64().unwrap();
-    let values = df.column("value").unwrap().f64().unwrap();
-    let colors = df.column("color").unwrap().str().unwrap();
-    let data: Vec<_> = (0..df.height()).filter_map(|i| {
-        let v = values.get(i)?;
-        if v.is_nan() { return None; }
-        Some(json!({ "time": times.get(i).unwrap(), "value": v, "color": colors.get(i).unwrap() }))
-    }).collect();
-    Ok(serde_json::to_string(&json!({ "action": "set_series_data", "chartId": chart_id, "seriesId": target_id, "data": data })).unwrap())
+fn df_to_set_data_cmd_colored(df: &DataFrame, sid: &str, chart_id: &str, indicator: Option<&str>, ind_type: Option<&str>) -> Result<String, String> {
+    let data = time_utils::df_to_json_list_colored(df)?;
+    let mut map = serde_json::Map::new();
+    map.insert("action".to_string(), json!("set_series_data"));
+    map.insert("chartId".to_string(), json!(chart_id));
+    map.insert("seriesId".to_string(), json!(sid));
+    map.insert("data".to_string(), json!(data));
+    if let Some(i) = indicator { map.insert("indicator".to_string(), json!(i)); }
+    if let Some(t) = ind_type  { map.insert("indicatorType".to_string(), json!(t)); }
+    Ok(serde_json::to_string(&json!(map)).unwrap())
 }

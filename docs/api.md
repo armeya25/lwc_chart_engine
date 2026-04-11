@@ -35,7 +35,7 @@ When passing a `polars.DataFrame`:
 ## Chart Class
 The `Chart` class is the primary interface, wrapping the Rust implementation. It is a singleton; multiple instantiations will return the same instance.
 
-#### `Chart(title="Chart Window", width=1200, height=800, main_series_id="main")`
+#### `Chart(title: str = "Chart Window", width: int = 1200, height: int = 800, main_series_id: str = "main")`
 Initializes the chart window and launches the Tauri backend.
 - `title`: Window title.
 - `width`/`height`: Initial window dimensions.
@@ -52,8 +52,11 @@ Returns the current list of active positions as a list of `Position` objects.
 #### `last_price` (Property)
 Returns the last known market price updated via `trader_update_price`.
 
+#### `history` (Property)
+Returns the list of closed trade positions from the simulated engine as a list of dictionaries.
+
 #### `set_timezone(tz: str)`
-Configures the global timezone. Supports IANA timezone names (e.g., `"Asia/Tokyo"`, `"Europe/London"`). The backend uses `chrono-tz` for high-performance conversions.
+Configures the global timezone. Supports IANA timezone names (e.g., `"Asia/Tokyo"`, `"Europe/London"`).
 
 #### `set_crosshair_mode(mode: int)`
 - `0`: Normal (Free movement).
@@ -62,8 +65,8 @@ Configures the global timezone. Supports IANA timezone names (e.g., `"Asia/Tokyo
 #### `set_sync(enabled: bool)`
 Synchronizes crosshairs, scrolling, and zooming across all subcharts in a multi-pane layout.
 
-#### `set_layout(layout: str = "single")`
-Configures the chart layout. Returns a list of `SubChart` objects.
+#### `set_layout(layout: str = "single") -> List['SubChart']`
+Configures the chart layout and returns a list of subchart interfaces.
 - `layout`: `"single"`, `"double"`, `"1p2"` (1 top, 2 bottom), `"1p3"` (1 top, 3 bottom).
 
 #### `set_tooltip(enabled: bool)`
@@ -84,39 +87,38 @@ Sets a background watermark text for a specific chart.
 #### `set_legend_visibility(visible: bool)`
 Show or hide the series legend in the top-left corner.
 
-#### `set_timeframe(tf: str | dict)`
+#### `set_timeframe(tf: Union[str, Dict[str, Any]])`
 Sets the timeframe indicator in the UI.
 
 #### `update_trend_info(title: str = None, value: str = None, change: str = None, color: str = None)`
-Updates the trend information overlay. Accepts arbitrary keys which are rendered in the UI's trend tracker.
+Updates the trend information overlay. Accepts arbitrary keys.
 
 #### `take_screenshot(chart_id: str = "chart-0")`
-Triggers a screenshot of the specified chart. The UI will prompt for a save location or handle the blob depends on implementation.
-
-### Series Management
-
-#### `create_line_series(name: str = "Line", chart_id: str = "chart-0")`
-Creates a new line series on the specified chart pane. Returns a `Series` object.
-
-#### `create_candlestick_series(name: str = "Price", chart_id: str = "chart-0")`
-Creates a new candlestick series on the specified chart pane. Returns a `Series` object.
-
-#### `remove_series(series_id: str, chart_id: str = "chart-0")`
-Removes a specific series from a chart pane.
-
-#### `clear_all_series(chart_id: str = "chart-0")`
-Removes all series from a specific chart pane.
-
-### Utility Methods
-
-#### `show_notification(message: str, type: str = "info")`
-Displays a toast notification in the UI. Types: `"info"`, `"success"`, `"warning"`, `"error"`.
+Triggers a screenshot of the specified chart.
 
 #### `show(block: bool = True)`
 Starts the UI event loop. If `block=True`, the Python script will wait until the window is closed.
 
 #### `exit()`
 Terminates the backend process and closes the chart window.
+
+#### `remove_series(series_id: str, chart_id: str = "chart-0")`
+Removes a specific series from a chart pane.
+
+#### `remove_indicator(indicator_id: str)`
+Programmatically removes an indicator group and all its associated sub-series (signal lines, histograms, etc.) from the chart state.
+
+#### `clear_all_series(chart_id: str = "chart-0")`
+Removes all series from a specific chart pane.
+
+### Series Management
+
+#### `create_line_series(name: str = "Line", chart_id: str = "chart-0") -> 'Series'`
+Creates a new line series on the specified chart pane.
+
+#### `create_candlestick_series(name: str = "Price", chart_id: str = "chart-0") -> 'Series'`
+Creates a new candlestick series on the specified chart pane.
+
 
 ---
 
@@ -135,7 +137,7 @@ Updates the last known market price. Automatically calculates P&L for all open p
 Synchronizes the current internal list of positions with the UI's position table.
 
 #### `trader_handle_callback(data: dict)`
-Internal callback for trade events triggered from the UI (e.g., via the Buy/Sell buttons).
+Internal callback for trade events triggered from the UI.
 
 ---
 
@@ -149,8 +151,6 @@ Starts the UI event loop. If `block=True`, the Python script will wait until the
 
 #### `exit()`
 Terminates the backend process and closes the chart window.
-
----
 
 ## Position Object
 Returned as a list via the `Chart.positions` property.
@@ -177,22 +177,41 @@ Returned by `set_layout`. Provides a restricted interface for creating series on
 
 ## Series Class
 
-### `set_data(df: polars.DataFrame)`
+### `set_data(df: pl.DataFrame)`
 Sets the entire dataset for the series. Overwrites existing data.
 
-### `update(item: dict | polars.DataFrame | polars.Series)`
-Appends new data to the series.
-- If a `dict` is passed, it is converted to a single row DataFrame.
-- If a `DataFrame` is passed, only the **first row** is used.
-- **Note**: The backend expects OHLC keys: `time`, `open`, `high`, `low`, `close` (and `value` for line series). Timestamps are auto-normalized via the `DateTimeEncoder`.
+### `update(item: Union[pl.DataFrame, Any]) -> List[str]`
+Appends new data to the series. Returns the sync commands generated by the backend.
 
-### `apply_options(options: dict)`
+### `apply_options(options: Dict[str, Any])`
 Supports Lightweight Charts (LWC) series options.
 - **Line Series**: `color`, `lineWidth`, `lineStyle`, `lineType`.
 - **Candlestick**: `upColor`, `downColor`, `borderVisible`, `wickVisible`.
 
-### `add_marker(time: Timestamp, position: str = "aboveBar", color: str = "#2196F3", shape: str = "arrowDown", text: str = "", chart_id: str = "chart-0")`
-Convenience method for adding a marker to this specific series. Automatically passes the `series_id` to the chart. (See [Markers](#markers) for available arguments).
+#### `set_auto_volume(enabled: bool)`
+Enable or disable the automatic creation of a volume histogram pane for this series.
+
+### Indicator Methods (v0.9.0)
+All indicators are high-performance and calculated in the Rust backend. Transitioning to `0.9.0` standardized the default `period` to **14**.
+
+#### `add_sma(period: int = 14, color: str = "#2962FF") -> 'Series'`
+#### `add_ema(period: int = 14, color: str = "#FF9800") -> 'Series'`
+#### `add_rsi(period: int = 14, color: str = "#9C27B0") -> 'Series'`
+#### `add_macd(fast: int = 12, slow: int = 26, signal: int = 9) -> 'Series'`
+#### `add_bollinger_bands(period: int = 14, std_dev: float = 2.0, color: str = None) -> 'Series'`
+#### `add_atr(period: int = 14, color: str = "#FF5252") -> 'Series'`
+
+#### `add_indicator_v2(ind_type: str, params: Dict[str, Any] = None, metadata: Dict[str, Any] = None) -> 'Series'`
+Unified optimized call to add an indicator with minimal context switching. Returns the primary series.
+
+#### `add_band(df: pl.DataFrame, color: str = "rgba(31, 150, 243, 0.2)")`
+Adds a technical Band (Cloud) between two series. Requires a DataFrame with `time`, `top`, and `bottom` columns.
+
+#### `add_segmented_line(df: pl.DataFrame, width: int = 2)`
+Converts the series data into a Segmented Line, allowing for dynamic multi-color support within a single line. Requires a DataFrame with `time`, `value`, and `color` columns.
+
+### `add_marker(time: Any, position: str = "aboveBar", color: str = "#2196F3", shape: str = "arrowDown", text: str = "")`
+Convenience method for adding a marker to this specific series.
 
 ---
 
@@ -261,4 +280,3 @@ A specialized method for keeping the UI in sync with an external trade state (e.
 - Automatically handles the conversion of `"buy"`/`"sell"` to `"long"`/`"short"`.
 - Prevents redundant commands if the state hasn't changed.
 
-- Prevents redundant commands if the state hasn't changed.

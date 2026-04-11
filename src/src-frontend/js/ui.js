@@ -54,6 +54,24 @@ export function addLegendItem(id, name, color, type = 'line', indicatorName = nu
         const groupLabel = indicatorTypeName || indicatorName;
         const seriesLabel = humanName || name;
         
+        // If group exists, update labels if provided
+        if (group) {
+            const row = document.getElementById(`group-row-${indicatorName}`);
+            if (row) {
+                const nameEl = row.querySelector('.legend-name');
+                if (nameEl && indicatorTypeName) nameEl.textContent = indicatorTypeName;
+            }
+            const item = document.getElementById(`legend-item-${id}`);
+            if (item) {
+                const labelSpan = item.querySelector('span[style*="color: var(--text-secondary)"]');
+                if (labelSpan && humanName) labelSpan.textContent = `${humanName}:`;
+            } else if (parseInt(group.dataset.seriesCount) === 1 && group.dataset.mainSid === id) {
+                // If it's a single row, update the row label if it's the main series
+                const nameEl = row?.querySelector('.legend-name');
+                if (nameEl && groupLabel) nameEl.textContent = groupLabel;
+            }
+        }
+
         // If first series for this indicator
         if (!group) {
             group = document.createElement('div');
@@ -63,22 +81,23 @@ export function addLegendItem(id, name, color, type = 'line', indicatorName = nu
             group.dataset.seriesCount = 1;
             group.dataset.mainSid = id; // Track the primary sid
             group.dataset.mainLabel = seriesLabel; // Store series-specific label
+            group.dataset.mainColor = color; // Store color for promotion logic
             group.dataset.typeLabel = groupLabel; // Store indicator-type label
             
-            // Initial HTML (assume single series first)
+            // TradingView Style: Each indicator is a row block with always-visible sub-items if needed
             group.innerHTML = `
-                <div class="legend-single-row" id="group-row-${indicatorName}">
-                    <div style="display: flex; align-items: center; flex: 1; cursor: pointer;" onclick="toggleIndicatorVisibility('${indicatorName}')">
-                        <span class="legend-color" style="background-color: ${color}; width: 8px; height: 8px; margin-right: 8px;"></span>
-                        <span class="legend-name" style="font-weight: 600;">${groupLabel}</span>
-                        <span class="legend-value" id="legend-val-${id}" style="margin-left: 8px; font-family: var(--font-mono); font-size: 11px;">--</span>
+                <div class="legend-group-header" id="group-row-${indicatorName}">
+                    <div class="legend-header-main">
+                        <span class="legend-visibility-btn" title="Toggle Visibility" onclick="event.stopPropagation(); window.toggleIndicatorVisibility('${indicatorName}')">👁️</span>
+                        <span class="legend-name" title="${groupLabel}">${groupLabel}</span>
+                        <span class="legend-value main-val" id="legend-val-${id}">--</span>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 4px;">
+                    <div class="legend-header-actions">
                         <span class="legend-settings-btn" title="Settings" onclick="event.stopPropagation(); window.showIndicatorSettings('${indicatorName}')">⚙️</span>
-                        <span class="legend-close" onclick="event.stopPropagation(); window.CommandHandlers.remove_indicator('${indicatorName}')">×</span>
+                        <span class="legend-close" title="Remove" onclick="event.stopPropagation(); window.CommandHandlers.remove_indicator('${indicatorName}')">×</span>
                     </div>
                 </div>
-                <div class="legend-group-content hidden" id="group-content-${indicatorName}"></div>
+                <div class="legend-group-content" id="group-content-${indicatorName}"></div>
             `;
             legendContent.appendChild(group);
             return;
@@ -90,23 +109,14 @@ export function addLegendItem(id, name, color, type = 'line', indicatorName = nu
         let count = parseInt(group.dataset.seriesCount);
         
         if (count === 1) {
+            // No transformation needed anymore as the structure is unified from the start
+            const content = document.getElementById(`group-content-${indicatorName}`);
+            if (content) content.classList.remove('hidden');
+            
             const mainSid = group.dataset.mainSid;
             const mainLabel = group.dataset.mainLabel;
-            const mainColor = singleRow.querySelector('.legend-color').style.backgroundColor;
+            const mainColor = group.dataset.mainColor;
 
-            // Transform single row to a group header
-            singleRow.innerHTML = `
-                <div style="display: flex; align-items: center; gap: 8px; cursor: pointer;" onclick="toggleIndicatorVisibility('${indicatorName}')">
-                    <span class="legend-name" style="font-weight: 700; color: var(--text-primary);">${groupLabel}</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 6px;">
-                    <span class="legend-settings-btn" title="Settings" onclick="event.stopPropagation(); window.showIndicatorSettings('${indicatorName}')">⚙️</span>
-                    <span class="legend-close" onclick="event.stopPropagation(); window.CommandHandlers.remove_indicator('${indicatorName}')">×</span>
-                </div>
-            `;
-            singleRow.className = 'legend-group-header';
-            content.classList.remove('hidden');
-            
             // Move the first (main) series to the content area as the first sub-item
             if (!document.getElementById(`legend-item-${mainSid}`)) {
                 const mainItem = document.createElement('div');
@@ -124,10 +134,9 @@ export function addLegendItem(id, name, color, type = 'line', indicatorName = nu
             }
         }
         
-        group.dataset.seriesCount = count + 1;
-        
-        // Add sub-item for the NEW series
-        if (!document.getElementById(`legend-item-${id}`)) {
+        if (id !== group.dataset.mainSid && !document.getElementById(`legend-item-${id}`)) {
+            group.dataset.seriesCount = count + 1;
+            // Add sub-item for the NEW series
             const item = document.createElement('div');
             item.id = `legend-item-${id}`;
             item.className = 'legend-sub-item';
@@ -190,7 +199,18 @@ window.toggleIndicatorVisibility = function(indicatorName) {
         const series = window.seriesMap.get(sid);
         if (series) series.applyOptions({ visible: newVisible });
     });
-    group.style.opacity = newVisible ? '1' : '0.5';
+    const eye = group.querySelector('.legend-visibility-btn');
+    if (eye) eye.style.opacity = newVisible ? '1' : '0.3';
+    group.style.opacity = newVisible ? '1' : '0.6';
+    
+    // Trigger pane layout rebalance for all charts
+    if (window.charts) {
+        window.charts.forEach(chart => {
+            if (window.CommandHandlers && window.CommandHandlers.ensurePaneLayout) {
+                window.CommandHandlers.ensurePaneLayout(chart);
+            }
+        });
+    }
 };
 
 
@@ -428,18 +448,51 @@ function setupViewMenu() {
 // export function toggleToolbar() { ... }
 
 function setupWindowControls() {
+    console.log("Setting up window controls...");
+    if (!window.__TAURI__) {
+        console.warn("Tauri context not found. Window controls disabled.");
+        return;
+    }
+
     const { getCurrentWindow } = window.__TAURI__.window;
+    if (!getCurrentWindow) {
+        console.error("getCurrentWindow not found in window.__TAURI__.window");
+        return;
+    }
+
     const appWindow = getCurrentWindow();
+    console.log("App window handle retrieved:", appWindow.label || "main");
 
     const minBtn = document.getElementById('titlebar-minimize');
     const maxBtn = document.getElementById('titlebar-maximize');
     const closeBtn = document.getElementById('titlebar-close');
 
-    if (minBtn) minBtn.onclick = () => appWindow.minimize();
-    if (maxBtn) maxBtn.onclick = () => appWindow.toggleMaximize();
-    if (closeBtn) closeBtn.onclick = () => appWindow.close();
+    if (minBtn) {
+        minBtn.onclick = async () => {
+            console.log("Minimize clicked");
+            await appWindow.minimize();
+        };
+    }
+    
+    if (maxBtn) {
+        maxBtn.onclick = async () => {
+            console.log("Toggle Maximize clicked");
+            await appWindow.toggleMaximize();
+        };
+    }
+    
+    if (closeBtn) {
+        closeBtn.onclick = async () => {
+            console.log("Window close requested");
+            try {
+                await appWindow.close();
+            } catch (err) {
+                console.error("Failed to close window:", err);
+            }
+        };
+    }
 
-    // Maximize icon toggle script is simple:
+    // Maximize icon toggle script 
     appWindow.onResized(async () => {
         const isMaximized = await appWindow.isMaximized();
         if (maxBtn) {

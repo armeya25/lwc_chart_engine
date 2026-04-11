@@ -1,3 +1,77 @@
+## [0.9.1] - 2026-04-11
+
+### 🚀 Core Improvements & Stability
+- **Summary**: Scoped Pane Rebalancing.
+- **Details**: Improved the visibility logic to independently scope pane resizing per chart. This ensures that hiding an indicator on one chart correctly reclaims vertical space without shifting the layout of other active charts.
+- **Summary**: Robust Command Handlers.
+- **Details**: Refactored `remove_indicator` and `open_indicator_settings` to correctly process both single-argument UI calls and structured backend command payloads, resolving unresponsive control buttons.
+
+### 🎯 UI & API Enhancements
+- **Summary**: Legend Stability & Crash Prevention.
+- **Details**: Fixed a critical `ReferenceError` in the indicator legend initialization that caused crashes when adding multi-series indicators (e.g., Bollinger Bands).
+- **Summary**: Settings Modal Restoration.
+- **Details**: Resolved the "Empty Modal" bug by removing redundant metadata overwrites in the Python bridge and repairing the Rust schema export function.
+
+### ⚙ Internal Refactoring
+- **Summary**: Expanded Indicator Label Mapping.
+- **Details**: Added logic-aware label matching for `bollingerbands` and `stochastic` in the Rust core for cleaner UI display.
+- **Summary**: Rust-Native Automatic Color Rotation.
+- **Details**: Implemented a stateful color rotation system in the Rust backend with an expanded 40-color palette. Multiple indicators of the same type added to a series now automatically receive distinct, high-contrast colors without manual user configuration.
+
+### 🛠 Build & Workflow Optimizations
+- **Summary**: Automated Repository Hygiene.
+- **Details**: Integrated a `cleanup_repo` job into the GitHub Actions pipeline that automatically removes binary wheels from the repository history after successful publication to PyPI, preventing repository bloat.
+- **Summary**: CI/CD Directory Synchronization.
+- **Details**: Synchronized the CI/CD artifact directory naming to `wheels/` (from `dist/`) to align with local build helper script conventions.
+
+## [0.9.0] - 2026-04-11
+
+### 🚀 Core Improvements / Features
+- **Summary**: Scoped Auto-Resizing Indicator Panes.
+- **Details**: Implemented dynamic vertical space redistribution when indicators are hidden or removed. The logic is now independently scoped per chart, ensuring that hiding an indicator on one pane correctly reclaims space without interfering with other open charts.
+- **Summary**: High-Performance MACD Integration.
+- **Details**: Finalized the triple-series MACD implementation with optimized Rust-side calculations and real-time histogram coloring.
+
+### 🎯 UI & API Enhancements
+- **Summary**: Professional Legend Design & Legibility.
+- **Details**: Flattened the indicator legend into high-density rows. Resolved name clipping (ellipses) by expanding CSS constraints and mapping technical codes to full titles (e.g., 'Bollinger Bands').
+- **Summary**: Fully Functional Indicator Settings.
+- **Details**: Restored the parameter modification modal by correcting property access on the Rust-to-JS metadata bridge. Users can now view and edit indicator periods and colors seamlessly.
+- **Summary**: PEP 484 Type Hinting & API Documentation.
+- **Details**: Applied full type annotations to `chart.py` and synchronized `docs/api.md` with all v0.9.0 programmatic methods (`history`, `add_indicator_v2`, `auto_resize`).
+
+### ⚙ Internal Refactoring
+- **Summary**: State-Synced Visibility Logic.
+- **Details**: Resolved series ID shadowing in `commands.js` to ensure 1:1 state mapping between the Python backend and JS frontend during indicator toggles.
+- **Summary**: Diagnostic Cleanup.
+- **Details**: Purged development logs and minimized binary overhead for the production release.
+
+## [0.8.5] - 2026-04-11
+
+### 🚀 Core Improvements / Features
+- **Summary**: Fully Synchronized Indicator Removal.
+- **Details**: Migrated removal logic to the Rust backend, returning a precise list of removed IDs to ensure Python/Rust state synchronization.
+- **Summary**: Robust Indicator Management.
+- **Details**: Refactored frontend command handlers (`remove_indicator`, `update_indicator`) to be signature-agnostic, resolving a critical bug where legend controls (Close, Save Settings) were non-functional when triggered from the UI.
+- **Summary**: Metadata-Robust Data Bridge.
+- **Details**: Enhanced data commands to carry indicator metadata, ensuring legend functionality is preserved during high-frequency streaming.
+
+### 🎯 UI & API Enhancements
+- **Summary**: Visual Real-Estate Optimization.
+- **Details**: Moved the Trend Info panel higher (`top: 40px`) to align with the legend and maximize available vertical space for chart rendering.
+- **Summary**: Parameter-Aware Naming & Legibility.
+- **Details**: Fixed indicator "naming gibberish" by ensuring labels consistently reflect human-readable, parameter-augmented names (e.g., `SMA(14)`).
+- **Summary**: Expanded Indicator Test Suite.
+- **Details**: Updated `indicator_test.py` with comprehensive examples for **RSI** and **Bollinger Bands**, verifying multi-pane and multi-series integration.
+- **Summary**: Default UI Persistence.
+- **Details**: Enabled Legend and Trend Info panels by default for a smoother first-run experience.
+
+### ⚙ Internal Refactoring
+- **Summary**: Secure Serialization Path.
+- **Details**: Implemented explicit type casting (Int64/Float64) in the Polars-to-JSON bridge, preventing backend schema mismatches during indicator calculations.
+- **Summary**: Clean Build Standards.
+- **Details**: Resolved numerous Rust compilation warnings and standardized background process communication.
+
 ## [0.7.9] - 2026-04-10
 
 ### 🚀 Core Improvements / Features

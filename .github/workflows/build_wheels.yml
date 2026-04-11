@@ -7,7 +7,7 @@ on:
     tags:
       - "v*"
     paths-ignore:
-      - "dist/**"
+      - "wheels/**"
   workflow_dispatch:
 
 permissions:
@@ -90,12 +90,12 @@ jobs:
           fi
 
       - name: Build Wheel
-        run: maturin build --release --features python-bridge --out dist --compatibility manylinux_2_39
+        run: maturin build --release --features python-bridge --out wheels --compatibility manylinux_2_39
 
       - name: Compress Internal Library (UPX)
         shell: bash
         run: |
-          WHEEL_FILE=$(ls dist/*.whl | head -n 1)
+          WHEEL_FILE=$(ls wheels/*.whl | head -n 1)
           if [ -n "$WHEEL_FILE" ]; then
             echo "📦 Unpacking $WHEEL_FILE for high compression..."
             mkdir tmp_wheel
@@ -152,7 +152,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wheels-${{ matrix.os }}
-          path: dist/*.whl
+          path: wheels/*.whl
 
   commit_wheels:
     name: Commit Wheels back to Repo
@@ -166,13 +166,13 @@ jobs:
 
       - name: Clear Old Wheels
         run: |
-          git rm -f dist/*.whl || true
-          mkdir -p dist
+          git rm -f wheels/*.whl || true
+          mkdir -p wheels
 
       - name: Download all wheels
         uses: actions/download-artifact@v4
         with:
-          path: dist
+          path: wheels
           pattern: wheels-*
           merge-multiple: true
 
@@ -187,8 +187,8 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          mkdir -p dist
-          git add -f dist/*.whl
+          mkdir -p wheels
+          git add -f wheels/*.whl
           git commit -m "🚀 build: automated wheel generation for v${{ steps.get_version.outputs.VERSION }} *maintained by amit vaidya*" || echo "No changes to commit"
           # Pull and rebase to ensure we are on top of the latest main
           git pull origin main --rebase
@@ -209,16 +209,39 @@ jobs:
       - name: Download all wheels
         uses: actions/download-artifact@v4
         with:
-          path: dist
+          path: wheels
           pattern: wheels-*
           merge-multiple: true
 
       - name: Display structure of downloaded files
-        run: ls -R dist
+        run: ls -R wheels
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          packages-dir: dist/
+          packages-dir: wheels/
           skip-existing: true
           verbose: true
+
+  cleanup_repo:
+    name: Repository Hygiene (Cleanup Wheels)
+    needs: publish_pypi
+    if: success() && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Remove Wheels from Repo
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git rm -rf wheels/ || echo "Wheels folder not found"
+          git commit -m "🧹 cleanup: remove binaries after successful PyPI release *maintained by amit vaidya*" || echo "No changes to commit"
+          # Ensure we have the latest main
+          git pull origin main --rebase
+          git push origin main
