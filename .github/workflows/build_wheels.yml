@@ -90,7 +90,13 @@ jobs:
           fi
 
       - name: Build Wheel
-        run: maturin build --release --features python-bridge --out wheels --compatibility manylinux_2_39
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" == "Linux" ]; then
+            maturin build --release --features python-bridge --out wheels --compatibility manylinux_2_39
+          else
+            maturin build --release --features python-bridge --out wheels
+          fi
 
       - name: Compress Internal Library (UPX)
         shell: bash
@@ -241,6 +247,7 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git rm -rf wheels/ || echo "Wheels folder not found"
+          git rm -rf dist/ || echo "Dist folder not found"
           git commit -m "🧹 cleanup: remove binaries after successful PyPI release *maintained by amit vaidya*" || echo "No changes to commit"
           # Ensure we have the latest main
           git pull origin main --rebase

@@ -91,7 +91,12 @@ fi
 echo "📦 Generating production wheel (lightweight)..."
 mkdir -p wheels
 rm -f src/chart_engine/chart_engine_lib.so # Never include manually copied libs in the wheel
-maturin build --release --features python-bridge --out wheels --compatibility manylinux_2_39
+
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    maturin build --release --features python-bridge --out wheels --compatibility manylinux_2_39
+else
+    maturin build --release --features python-bridge --out wheels
+fi
 
 # High Compression Phase
 echo "🗜 Starting High Compression phase for the .whl..."

@@ -428,10 +428,6 @@ pub fn calculate_step(
 }
 
 pub fn get_indicator_schemas() -> String {
-    get_all_metadata_json()
-}
-
-pub fn get_all_metadata_json() -> String {
     json!({
         "sma": {"period": {"type": "int", "min": 1, "max": 200, "default": 14}},
         "ema": {"period": {"type": "int", "min": 1, "max": 200, "default": 14}},
@@ -460,7 +456,7 @@ pub fn get_all_metadata_json() -> String {
 }
 
 pub fn get_indicator_params_schema(ind_type: IndicatorType) -> serde_json::Value {
-    let all_json = get_all_metadata_json();
+    let all_json = get_indicator_schemas();
     let all: serde_json::Value = serde_json::from_str(&all_json).unwrap();
     let key = match ind_type {
         IndicatorType::Sma => "sma",

@@ -360,7 +360,25 @@ class Chart:
                     logger.log(py_level, f"[rust:{msg.get('target', 'engine')}] {msg.get('message', '')}")
                     # Force print errors to console for visibility
                     if level_name in ["ERROR", "CRITICAL"]:
-                        print(f"❌ [Chart Engine Error]: {msg.get('message', '')}")
+                        print(f"❌ [Chart Engine Backend Error]: {msg.get('message', '')}")
+                    continue
+
+                if msg.get("action") == "js_error":
+                    data = msg.get("data", {})
+                    err_msg = data.get("message", "Unknown JS error")
+                    err_url = data.get("url", "unknown")
+                    err_line = data.get("line", "?")
+                    err_stack = data.get("stack", "")
+                    
+                    logger.error(f"[js:error] {err_msg} at {err_url}:{err_line}")
+                    if err_stack:
+                        logger.debug(f"[js:stack] {err_stack}")
+                    
+                    print(f"❌ [Chart Engine JS Error]: {err_msg} ({err_url}:{err_line})")
+                    if err_stack and level_name in ["ERROR", "CRITICAL"]:
+                        # Print first few lines of stack for better context in console
+                        stack_preview = "\n".join(err_stack.split("\n")[:3])
+                        print(f"   Stack trace:\n{stack_preview}...")
                     continue
 
                 if msg.get("action") == "update_indicator":
@@ -499,19 +517,8 @@ class Chart:
     def enable_tooltip(self): self.set_tooltip(True)
     def disable_tooltip(self): self.set_tooltip(False)
     
-    def set_layout_toolbar_visibility(self, v: bool):
-        """Show or hide the side toolbar containing layout settings"""
-        cmd = self._rust_chart.set_layout_toolbar_visibility(bool(v))
-        self._send_command(json.loads(cmd))
-
-    def enable_layout_toolbar(self): self.set_layout_toolbar_visibility(True)
-    def disable_layout_toolbar(self): self.set_layout_toolbar_visibility(False)
-    
     def set_trend_info_visibility(self, v: bool): 
         self._send_command({"action": "set_trend_info_visibility", "data": {"visible": v}})
-    
-    def set_layout_toolbar_visibility(self, v: bool): 
-        self._send_command({"action": "set_layout_toolbar_visibility", "data": {"visible": v}})
 
     def set_legend_visibility(self, v: bool):
         self._send_command({"action": "set_legend_visibility", "data": {"visible": v}})

@@ -29,8 +29,8 @@ function run() {
     execSync('npx esbuild src-frontend/js/entry.js --bundle --minify --outfile=src-frontend/dist/app.min.js', { stdio: 'inherit' });
 
     // 3. Run esbuild for CSS
-    console.log('🎨 Minifying CSS with esbuild...');
-    execSync('npx esbuild src-frontend/terminal.css --minify --outfile=src-frontend/dist/terminal.css', { stdio: 'inherit' });
+    console.log('🎨 Bundling and minifying CSS with esbuild...');
+    execSync('npx esbuild src-frontend/terminal.css --bundle --minify --outfile=src-frontend/dist/terminal.css', { stdio: 'inherit' });
 
     // 4. Copy static assets
     console.log('📄 Copying static assets...');

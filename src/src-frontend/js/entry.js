@@ -64,42 +64,52 @@ window.SegmentedLinePrimitive = SegmentedLinePrimitive;
 window.SegmentedBandPrimitive = SegmentedBandPrimitive;
 
 // --- Final Initialization ---
-try {
-    initCharts();
-    setupPositionsPanel();
-    
-    const loadingText = document.querySelector('.loading-text');
-    if (loadingText) loadingText.innerText = "Waiting for Backend...";
-    
-    // Notify Backend (Hybrid support for Tauri/WebView)
-    if (window.__TAURI__) {
-        window.isReady = true;
-        const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.invoke;
-        if (invoke) {
-            invoke('frontend_ready')
-                .then(() => { if (hideLoader) hideLoader(); })
-                .catch(e => console.error("Frontend: Tauri mark_ready failed", e));
+const startApp = async () => {
+    try {
+        initCharts();
+        setupPositionsPanel();
+        
+        const loadingText = document.querySelector('.loading-text');
+        if (loadingText) loadingText.innerText = "Connecting to Backend...";
+
+        // Wait for bridge (Tauri) to be available if we're in a Tauri environment
+        let bridgeReady = false;
+        for (let i = 0; i < 50; i++) { // 2.5 seconds max wait
+            if (window.__TAURI__) {
+                bridgeReady = true;
+                break;
+            }
+            await new Promise(r => setTimeout(r, 50));
         }
-        const listen = window.__TAURI__.event ? window.__TAURI__.event.listen : window.__TAURI__.listen;
-        if (listen) {
-            listen('command', (event) => {
-                handleCommand(event.payload);
-            }).catch(e => console.error("Frontend: listen failed", e));
-        }
-    } else if (window.pywebview && window.pywebview.api) {
-        window.isReady = true;
-        setTimeout(() => {
-            window.pywebview.api.mark_ready();
-        }, 100);
-    } else {
-        window.addEventListener('pywebviewready', () => {
+
+        if (bridgeReady) {
             window.isReady = true;
-            setTimeout(() => {
-                window.pywebview.api.mark_ready()
-                    .catch(e => console.error("Frontend: mark_ready failed", e));
-            }, 100);
-        });
+            const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.invoke;
+            const listen = window.__TAURI__.event ? window.__TAURI__.event.listen : window.__TAURI__.listen;
+            
+            if (invoke) {
+                try {
+                    await invoke('frontend_ready');
+                } catch (e) {
+                    console.error("Frontend: Tauri frontend_ready failed", e);
+                }
+            }
+            
+            if (listen) {
+                listen('command', (event) => {
+                    handleCommand(event.payload);
+                }).catch(e => console.error("Frontend: listen failed", e));
+            }
+        } else {
+            console.warn("Frontend: No Tauri bridge detected, proceeding in standalone mode.");
+        }
+        
+    } catch (e) {
+        console.error("Initialization Error:", e);
+    } finally {
+        // ALWAYS hide the loader when done, regardless of bridge status
+        if (hideLoader) hideLoader();
     }
-} catch (e) {
-    console.error("Initialization Error:", e);
-}
+};
+
+startApp();

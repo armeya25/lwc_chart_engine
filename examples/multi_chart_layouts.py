@@ -1,4 +1,3 @@
-import time
 import datetime
 import polars as pl
 import numpy as np

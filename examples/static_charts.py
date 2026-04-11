@@ -1,9 +1,6 @@
-import logging
-import sys
 from chart_engine import Chart
 import os
 import polars as pl
-import time
 
 def test_chart():
     

@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Chart Terminal</title>
+    <title>Initializing...</title>
 
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12,7 +12,7 @@
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap"
         rel="stylesheet">
 
-    <link rel="stylesheet" href="terminal.css">
+    <link rel="stylesheet" href="terminal.css?v=10">
 </head>
 
 <body>
@@ -84,20 +84,6 @@
         </div>
     </div>
     
-    <div id="legend">
-        <div id="legend-header" onclick="toggleLegend()">
-            <span>Legend</span>
-            <span class="toggle-icon">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
-            </span>
-        </div>
-        <div id="legend-content"></div>
-    </div>
-
-    <div id="toolbar"></div>
 
 
     <div id="scroll-to-now" onclick="scrollToRealTime()" title="Scroll to latest">
@@ -119,7 +105,9 @@
                     </svg>
                 </span>
             </div>
-            <div id="trend-content"></div>
+            <div id="trend-content">
+                <!-- Dynamic rows are added here on the fly -->
+            </div>
         </div>
 
         <div id="positions-panel" class="hidden">
@@ -180,7 +168,9 @@
                 <span id="modal-indicator-icon">⚙️</span>
                 <span id="modal-indicator-name">Indicator Settings</span>
             </div>
-            <div class="modal-body" id="modal-body"></div>
+            <div class="modal-body" id="modal-body">
+                <!-- Inputs generated dynamically -->
+            </div>
             <div class="modal-footer">
                 <button class="cancel-btn" onclick="closeModal()">Cancel</button>
                 <button class="save-btn" id="modal-save-btn">Save Changes</button>
@@ -188,7 +178,8 @@
         </div>
     </div>
 
-    <!-- Production Bundles -->
+    <!-- Scripts -->
+
     <script src="lightweight-charts.js"></script>
     <script src="app.min.js"></script>
 </body>

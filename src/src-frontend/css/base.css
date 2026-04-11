@@ -1,0 +1,41 @@
+/* Global Styles & Resets */
+body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    /* Deep Radial Gradient for Depth */
+    background: radial-gradient(circle at 50% 10%, #1a1a2e 0%, #050505 80%);
+    font-family: var(--font-main);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* Optimization for Hardware Acceleration */
+.gpu-layer {
+    will-change: transform;
+    transform: translateZ(0);
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.4);
+}

@@ -198,7 +198,7 @@ export const CommandHandlers = {
         }
         const humanName = extra.humanName || extra.human_name || cmd.humanName || cmd.name;
         const indicatorTypeName = extra.indicatorTypeName || extra.indicator_type_name || cmd.indicatorTypeName;
-        window.addLegendItem(sid, cmd.name, cmd.options.color, 'line', indicatorId, humanName, indicatorTypeName);
+        window.addLegendItem(chartId, sid, cmd.name, cmd.options.color, 'line', indicatorId, humanName, indicatorTypeName);
         console.info(`[Chart] Created Indicator Series: ${sid} for ${indicatorId || 'Overlay'}`);
     },
     create_area_series: (targetChart, cmd, chartId) => {
@@ -217,7 +217,7 @@ export const CommandHandlers = {
         window.chartSeriesMap.get(chartId).add(sid);
         const humanName = cmd.humanName || (cmd.extra ? (cmd.extra.humanName || cmd.extra.human_name) : cmd.name);
         const indicatorTypeName = cmd.indicatorTypeName || (cmd.extra ? (cmd.extra.indicatorTypeName || cmd.extra.indicator_type_name) : null);
-        window.addLegendItem(sid, cmd.name, cmd.options.lineColor || cmd.options.topColor, 'area', cmd.indicator, humanName, indicatorTypeName);
+        window.addLegendItem(chartId, sid, cmd.name, cmd.options.lineColor || cmd.options.topColor, 'area', cmd.indicator, humanName, indicatorTypeName);
     },
     create_segmented_line: (_targetChart, cmd) => {
         const ownerSeries = window.seriesMap.get(getSId(cmd));
@@ -279,7 +279,7 @@ export const CommandHandlers = {
                 type: 'candle'
             });
         }
-        window.addLegendItem(sid, cmd.name, cmd.options.upColor, 'candle', cmd.indicator, humanName, indicatorTypeName);
+        window.addLegendItem(chartId, sid, cmd.name, cmd.options.upColor, 'candle', cmd.indicator, humanName, indicatorTypeName);
     },
     create_histogram_series: (targetChart, cmd, chartId) => {
         if (!targetChart) return;
@@ -309,7 +309,7 @@ export const CommandHandlers = {
                 type: 'histogram'
             });
         }
-        window.addLegendItem(sid, cmd.name, cmd.options.color, 'histogram', cmd.indicator, humanName, indicatorTypeName);
+        window.addLegendItem(chartId, sid, cmd.name, cmd.options.color, 'histogram', cmd.indicator, humanName, indicatorTypeName);
     },
     set_series_data: (_targetChart, cmd) => {
         const sid = getSId(cmd);
@@ -319,7 +319,14 @@ export const CommandHandlers = {
             const humanName = cmd.humanName || (cmd.extra ? (cmd.extra.humanName || cmd.extra.human_name) : null);
             const indicatorTypeName = cmd.indicatorTypeName || (cmd.extra ? (cmd.extra.indicatorTypeName || cmd.extra.indicator_type_name) : (cmd.indicatorType || (cmd.extra ? cmd.extra.indicator_type : null)));
             if (cmd.indicator || humanName || indicatorTypeName) {
-                window.addLegendItem(sid, cmd.name || sid, null, null, cmd.indicator, humanName, indicatorTypeName);
+                // Determine chartId for this series
+                let chartIdToUse = null;
+                for (let [id, sSet] of window.chartSeriesMap.entries()) {
+                    if (sSet.has(sid)) { chartIdToUse = id; break; }
+                }
+                if (chartIdToUse) {
+                    window.addLegendItem(chartIdToUse, sid, cmd.name || sid, null, null, cmd.indicator, humanName, indicatorTypeName);
+                }
             }
 
             // If this series has a segmented plugin, update it too
@@ -374,7 +381,7 @@ export const CommandHandlers = {
             window.seriesMap.set(volumeSid, volumeSeries);
             if (!window.chartSeriesMap.has(chartId)) window.chartSeriesMap.set(chartId, new Set());
             window.chartSeriesMap.get(chartId).add(volumeSid);
-            window.addLegendItem(volumeSid, 'Volume', '#26a69a', 'histogram');
+            window.addLegendItem(chartId, volumeSid, 'Volume', '#26a69a', 'histogram');
         }
 
         const volumeData = cmd.data.map(d => ({
@@ -406,7 +413,13 @@ export const CommandHandlers = {
             const humanName = cmd.humanName || (cmd.extra ? (cmd.extra.humanName || cmd.extra.human_name) : null);
             const indicatorTypeName = cmd.indicatorTypeName || (cmd.extra ? (cmd.extra.indicatorTypeName || cmd.extra.indicator_type_name) : (cmd.indicatorType || (cmd.extra ? cmd.extra.indicator_type : null)));
             if (cmd.indicator || humanName || indicatorTypeName) {
-                window.addLegendItem(sid, cmd.name || sid, null, null, cmd.indicator, humanName, indicatorTypeName);
+                let chartIdToUse = null;
+                for (let [id, sSet] of window.chartSeriesMap.entries()) {
+                    if (sSet.has(sid)) { chartIdToUse = id; break; }
+                }
+                if (chartIdToUse) {
+                    window.addLegendItem(chartIdToUse, sid, cmd.name || sid, null, null, cmd.indicator, humanName, indicatorTypeName);
+                }
             }
             try {
                 series.update(cmd.data);
@@ -428,13 +441,12 @@ export const CommandHandlers = {
         if (series && targetChart) {
             targetChart.removeSeries(series);
             window.seriesMap.delete(sid);
-            // Also clean up from chartSeriesMap
-            window.charts.forEach((c, chartId) => {
-                const sSet = window.chartSeriesMap.get(chartId);
-                if (sSet) sSet.delete(sid);
+            // Remove legend item from the correct chart legend
+            let chartIdForSeries = null;
+            window.chartSeriesMap.forEach((sSet, cid) => {
+                if (sSet.has(sid)) { chartIdForSeries = cid; sSet.delete(sid); }
             });
-            // Remove legend item
-            const item = document.getElementById(`legend-item-${sid}`);
+            const item = document.getElementById(`${chartIdForSeries || ''}-legend-item-${sid}`);
             if (item) item.remove();
         }
     },
@@ -446,7 +458,7 @@ export const CommandHandlers = {
                 const series = window.seriesMap.get(sid);
                 if (series) targetChart.removeSeries(series);
                 window.seriesMap.delete(sid);
-                const item = document.getElementById(`legend-item-${sid}`);
+                const item = document.getElementById(`${chartId}-legend-item-${sid}`);
                 if (item) item.remove();
             });
             sSet.clear();
@@ -544,13 +556,11 @@ export const CommandHandlers = {
         const panel = document.getElementById('trend-info');
         if (panel) panel.classList.toggle('hidden', !cmd.data.visible);
     },
-    set_layout_toolbar_visibility: (_targetChart, cmd) => {
-        // Deprecated: Toolbar no longer exists. Layout is now in View Menu.
-        console.warn("set_layout_toolbar_visibility is deprecated. Layout is now in View Menu.");
-    },
     set_legend_visibility: (_targetChart, cmd) => {
-        const legend = document.getElementById('legend');
-        if (legend) legend.classList.toggle('hidden', !cmd.data.visible);
+        const visible = cmd.data.visible;
+        document.querySelectorAll('.chart-legend').forEach(el => {
+            el.classList.toggle('hidden', !visible);
+        });
     },
     update_positions: (_targetChart, cmd) => {
         if (window.updatePositionsUI) window.updatePositionsUI(cmd.data);
@@ -603,7 +613,7 @@ export const CommandHandlers = {
             const canvas = targetChart.takeScreenshot();
             const base64 = canvas.toDataURL('image/png');
             // Emit to backend (Tauri or PyWebview)
-            const invoke = window.__TAURI__ ? window.__TAURI__.invoke : (window.pywebview ? window.pywebview.api.emit_to_backend : null);
+            const invoke = window.__TAURI__ ? (window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.invoke) : null;
             if (invoke) {
                 invoke('emit_to_backend', { 
                     action: 'screenshot', 
@@ -616,19 +626,22 @@ export const CommandHandlers = {
             }
         }
     },
-    remove_indicator: (chart, arg) => {
+    remove_indicator: (chart, arg, optChartId) => {
         let indicatorName = null;
+        let chartId = optChartId;
+
         if (typeof chart === 'string') {
-            // Called from UI: remove_indicator(name)
+            // Called from UI: remove_indicator(name, chartId)
             indicatorName = chart;
+            chartId = arg; 
         } else {
-            // Called from Dispatcher: remove_indicator(chart, cmd/name)
+            // Called from Dispatcher: remove_indicator(chart, cmd/name, chartId)
             indicatorName = typeof arg === 'string' ? arg : (arg ? arg.indicator : null);
         }
         
-        if (!indicatorName) return;
+        if (!indicatorName || !chartId) return;
 
-        const group = document.getElementById(`legend-group-${indicatorName}`);
+        const group = document.getElementById(`${chartId}-legend-group-${indicatorName}`);
         if (group) {
             const sids = new Set();
             
@@ -656,7 +669,7 @@ export const CommandHandlers = {
             });
 
             // 4. Notify Backend
-            const invoke = window.__TAURI__ ? (window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.invoke) : (window.pywebview ? window.pywebview.api.emit_to_backend : null);
+            const invoke = window.__TAURI__ ? (window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.invoke) : null;
             if (invoke) {
                 invoke('emit_to_backend', { 
                     action: 'remove_indicator', 
@@ -720,7 +733,7 @@ export const CommandHandlers = {
                 meta.params = newParams;
                 
                 // Emit to Python backend
-                const invoke = window.__TAURI__ ? window.__TAURI__.invoke : (window.pywebview ? window.pywebview.api.emit_to_backend : null);
+                const invoke = window.__TAURI__ ? (window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.invoke) : null;
                 if (invoke) {
                     invoke('emit_to_backend', { 
                         action: 'update_indicator', 

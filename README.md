@@ -2,8 +2,6 @@
 
 A high-performance charting engine built with **Rust**, **Tauri**, and **Lightweight Charts**. This library provides a seamless, non-blocking Python API for streaming and visualizing large datasets via **Polars**.
 
-**<u>[installable wheels for Os are in wheels/ folder](dist/)</u>**
-
 ![Static Chart Example](screenshots/static.png)
 ![Multi Chart Layouts](screenshots/multi_charts.png)
 ![Drawing Tools](screenshots/drawing_tools.png)

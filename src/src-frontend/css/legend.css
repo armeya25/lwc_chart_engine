@@ -1,0 +1,163 @@
+/* Chart Legend & Market Data Status Lines */
+
+/* --- Trend & Price Info --- */
+#trend-info {
+    position: relative;
+    z-index: 10;
+    padding: 0;
+    pointer-events: auto;
+    width: 220px;
+    overflow: hidden;
+    background: var(--bg-glass);
+    backdrop-filter: blur(var(--blur-strength));
+    -webkit-backdrop-filter: blur(var(--blur-strength));
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-soft);
+    transition: all var(--transition-smooth);
+    display: flex;
+    flex-direction: column;
+}
+
+.trend-header, .legend-header {
+    padding: 12px 16px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+.trend-header:hover, .legend-header:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.trend-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+}
+
+.trend-row span:first-child { color: var(--text-secondary); font-weight: 500; }
+.trend-row span:first-child::after { content: ':'; margin-right: 4px; }
+
+.trend-val {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    text-transform: capitalize;
+    transition: color 0.3s ease, text-shadow 0.3s ease;
+}
+.trend-val.trend-up { color: #00e676; text-shadow: 0 0 8px rgba(0, 230, 118, 0.6); }
+.trend-val.trend-down { color: #ef5350; text-shadow: 0 0 8px rgba(239, 83, 80, 0.6); }
+.trend-val.trend-neutral { color: #ffd740; text-shadow: 0 0 8px rgba(255, 215, 64, 0.5); }
+
+/* --- Modern Legend (Top-Left) --- */
+.chart-legend {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    z-index: 1000;
+    width: auto;
+    min-width: 200px;
+    max-width: 90%;
+    display: flex;
+    flex-direction: column;
+    background: transparent;
+    transition: background 0.2s ease;
+    border-radius: 4px;
+    padding: 4px;
+    pointer-events: none;
+}
+
+.chart-legend:hover {
+    background: rgba(18, 22, 33, 0.4);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    pointer-events: auto;
+}
+
+.legend-content {
+    overflow-y: auto;
+    max-height: 250px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0;
+    background: transparent !important;
+    border: none !important;
+}
+
+.legend-content .legend-item, 
+.legend-content .legend-group {
+    pointer-events: auto;
+}
+
+.legend-item, .legend-group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11.5px;
+    padding: 1px 4px;
+    border-radius: 4px;
+    gap: 4px;
+    min-height: 20px;
+}
+
+.legend-item:hover, .legend-group-header:hover { background: rgba(255, 255, 255, 0.05); }
+
+.legend-header-main { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.legend-name { font-weight: 700; color: var(--text-primary); margin-right: 4px; }
+
+.legend-value {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    text-align: right;
+    min-width: 60px;
+    color: var(--text-primary);
+}
+
+.legend-status-line { display: flex; gap: 8px; font-size: 11px; color: var(--text-secondary); }
+.status-item { display: flex; gap: 4px; }
+.status-label { color: var(--text-secondary); font-weight: 400; }
+.status-val { font-weight: 600; min-width: 45px; }
+.status-val.up { color: var(--success-color); }
+.status-val.down { color: var(--error-color); }
+
+.legend-header-actions { 
+    display: flex; 
+    gap: 4px; 
+    opacity: 0.3; 
+    transition: opacity 0.15s ease;
+    margin-left: 8px;
+}
+.legend-item:hover .legend-header-actions,
+.legend-group:hover .legend-header-actions { opacity: 1; }
+
+.legend-visibility-btn, .legend-settings-btn, .legend-close {
+    cursor: pointer;
+    font-size: 12px;
+    opacity: 0.6;
+    transition: opacity 0.2s, transform 0.2s;
+    display: flex;
+    align-items: center;
+    padding: 0 2px;
+}
+
+.legend-visibility-btn:hover, .legend-settings-btn:hover, .legend-close:hover { opacity: 1; transform: scale(1.1); }
+.legend-close:hover { color: var(--error-color); }
+
+.legend-group-content { padding-left: 20px; display: flex; flex-direction: column; gap: 1px; }
+
+/* Collapsed States */
+.collapsed .trend-content, .collapsed .legend-content { display: none; }
+#trend-info.collapsed, .chart-legend.collapsed { width: auto; min-width: 120px; }
+.collapsed .toggle-icon { transform: rotate(-90deg); }
+#trend-info.collapsed .toggle-icon { transform: rotate(90deg); }
+.chart-legend.collapsed .toggle-icon, #trend-info.collapsed .toggle-icon { transform: rotate(90deg); }

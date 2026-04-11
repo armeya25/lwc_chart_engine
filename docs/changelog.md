@@ -1,3 +1,27 @@
+## [0.9.2] - 2026-04-11
+
+### 🚀 Core Improvements / Features
+- **Summary**: Modular CSS Architecture.
+- **Details**: Refactored the monolithic `terminal.css` into a structure-aligned multi-file system (`css/` directory) for significantly improved maintainability. Implemented an `@import` manifest pattern to maintain zero-impact integration for existing frontend assets.
+
+### 🛠 Build & Workflow Optimizations
+- **Summary**: Robust CSS Bundling & Distribution.
+- **Details**: Added the `--bundle` flag to the `esbuild` configuration in `build-frontend.js`. This resolves a critical build regression where modular CSS dependencies were being excluded from the production `dist/` directory.
+- **Summary**: OS-Aware Cross-Platform Builds.
+- **Details**: Updated the GitHub Actions workflow and local build scripts to conditionally apply the `--compatibility` flag only on Linux platforms, ensuring stable wheel generation for macOS and Windows.
+- **Summary**: Automated Build Cleanup.
+- **Details**: Enhanced the repository hygiene job in CI/CD to automatically purge the `dist/` directory after a successful PyPI release.
+
+### 🎯 UI & API Enhancements
+- **Summary**: Professional Positions & Portfolio Dashboard.
+- **Details**: Modernized the Positions Panel with a high-fidelity glassmorphic tabbed interface (Active vs. History). Implemented monospace financial data alignment and optimized typography for professional-grade legibility.
+- **Summary**: Custom Legend Series Filtering.
+- **Details**: Refined the Candlestick series legend to remove distracting close/settings buttons while increasing the default visibility of interactive controls for all other indicators to improve UX discoverability.
+
+### ⚙ Internal Refactoring
+- **Summary**: Unified Project Metadata Synchronization.
+- **Details**: Synchronized a global project version bump to `0.9.2` across `pyproject.toml`, `Cargo.toml`, and `tauri.conf.json`.
+
 ## [0.9.1] - 2026-04-11
 
 ### 🚀 Core Improvements & Stability

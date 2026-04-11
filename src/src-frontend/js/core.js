@@ -21,7 +21,46 @@ window.onerror = function (msg, url, line, col, error) {
         loadingDiv.innerHTML += `<div style="color:red; font-size:16px; margin-top:10px;">Error: ${msg}<br>Line: ${line}:${col}</div>`;
     }
     console.error("Global Error:", msg, url, line, col, error);
+
+    // Bridge to Rust->Python
+    if (window.__TAURI__) {
+        try {
+            const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.invoke;
+            if (invoke) {
+                invoke('emit_to_backend', { 
+                    action: 'js_error', 
+                    data: { 
+                        message: msg, 
+                        url: url, 
+                        line: line, 
+                        col: col, 
+                        stack: error ? error.stack : "" 
+                    } 
+                }).catch(e => console.error("Error reporting failed:", e));
+            }
+        } catch (e) {
+            // Silently fail to avoid infinite recursion if bridge itself crashes
+        }
+    }
     return false;
+};
+
+window.onunhandledrejection = function(event) {
+    console.error("Unhandled Rejection:", event.reason);
+    if (window.__TAURI__) {
+        try {
+            const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.invoke;
+            if (invoke) {
+                invoke('emit_to_backend', { 
+                    action: 'js_error', 
+                    data: { 
+                        message: `Unhandled Rejection: ${event.reason}`,
+                        stack: event.reason && event.reason.stack ? event.reason.stack : ""
+                    } 
+                }).catch(e => console.error("Error reporting failed:", e));
+            }
+        } catch (e) {}
+    }
 };
 
 function updateStatus(text) {

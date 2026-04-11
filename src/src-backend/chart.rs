@@ -303,7 +303,6 @@ pub struct Chart {
     pub trader: PaperTrader,
     pub layout: String,
     pub tooltip_enabled: bool,
-    pub layout_toolbar_enabled: bool,
 }
 
 impl Chart {
@@ -316,7 +315,6 @@ impl Chart {
             trader: PaperTrader::new(),
             layout: "single".to_string(),
             tooltip_enabled: false,
-            layout_toolbar_enabled: false,
         }
     }
 
@@ -363,12 +361,6 @@ impl Chart {
         Ok(serde_json::to_string(&cmd).unwrap())
     }
 
-    pub fn set_layout_toolbar_visibility(&mut self, visible: bool) -> Result<String, String> {
-        self.layout_toolbar_enabled = visible;
-        let mut cmd = ChartCommand::new("set_layout_toolbar_visibility", "chart-0");
-        cmd.data = Some(json!({"visible": visible}));
-        Ok(serde_json::to_string(&cmd).unwrap())
-    }
 
     pub fn add_indicator_v2(
         &mut self,
@@ -627,10 +619,6 @@ impl Chart {
         self.set_tooltip(enabled).map_err(|e| pyo3::exceptions::PyValueError::new_err(e))
     }
 
-    #[pyo3(name = "set_layout_toolbar_visibility")]
-    pub fn py_set_layout_toolbar_visibility(&mut self, visible: bool) -> PyResult<String> {
-        self.set_layout_toolbar_visibility(visible).map_err(|e| pyo3::exceptions::PyValueError::new_err(e))
-    }
 
     #[pyo3(name = "add_indicator_v2")]
     pub fn py_add_indicator_v2(

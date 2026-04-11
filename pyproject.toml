@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "chart_engine"
-version = "0.9.1"
+version = "0.9.2"
 description = "High-performance charting engine built with Rust and Tauri"
 authors = [
     { name = "Amit Vaidya" },
