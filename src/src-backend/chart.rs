@@ -262,6 +262,14 @@ impl Series {
             "rsi" => IndicatorType::Rsi,
             "macd" => IndicatorType::Macd,
             "bbands" | "bollinger" => IndicatorType::BollingerBands,
+            "wma" => IndicatorType::Wma,
+            "hma" => IndicatorType::Hma,
+            "mfi" => IndicatorType::Mfi,
+            "roc" => IndicatorType::Roc,
+            "keltnerchannels" | "keltner" => IndicatorType::KeltnerChannels,
+            "donchianchannels" | "donchian" => IndicatorType::DonchianChannels,
+            "obv" => IndicatorType::Obv,
+            "adl" => IndicatorType::Adl,
             _ => return Err(pyo3::exceptions::PyValueError::new_err("Unknown indicator type")),
         };
         let params: std::collections::HashMap<String, Value> = serde_json::from_str(&params_json)
@@ -400,6 +408,14 @@ impl Chart {
             "williamsr" => IndicatorType::WilliamsR,
             "dema" => IndicatorType::Dema,
             "tema" => IndicatorType::Tema,
+            "wma" => IndicatorType::Wma,
+            "hma" => IndicatorType::Hma,
+            "mfi" => IndicatorType::Mfi,
+            "roc" => IndicatorType::Roc,
+            "keltnerchannels" => IndicatorType::KeltnerChannels,
+            "donchianchannels" => IndicatorType::DonchianChannels,
+            "obv" => IndicatorType::Obv,
+            "adl" => IndicatorType::Adl,
             _ => return Err(format!("Unknown indicator type: {}", ind_type_str)),
         };
 
@@ -431,6 +447,14 @@ impl Chart {
             "atr" => "ATR",
             "stoch" | "stochastic" => "Stochastic",
             "cci" => "CCI",
+            "wma" => "WMA",
+            "hma" => "HMA",
+            "obv" => "OBV",
+            "adl" => "ADL",
+            "keltnerchannels" => "Keltner Channels",
+            "donchianchannels" => "Donchian Channels",
+            "mfi" => "MFI",
+            "roc" => "ROC",
             _ => &type_label,
         };
 

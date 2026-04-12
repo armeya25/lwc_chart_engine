@@ -54,6 +54,14 @@ pub enum IndicatorType {
     Cci,
     Vwap,
     WilliamsR,
+    Wma,
+    Hma,
+    Mfi,
+    Roc,
+    KeltnerChannels,
+    DonchianChannels,
+    Obv,
+    Adl,
 }
 
 impl IndicatorType {
@@ -71,6 +79,14 @@ impl IndicatorType {
             IndicatorType::Cci => "cci",
             IndicatorType::Vwap => "vwap",
             IndicatorType::WilliamsR => "williamsr",
+            IndicatorType::Wma => "wma",
+            IndicatorType::Hma => "hma",
+            IndicatorType::Mfi => "mfi",
+            IndicatorType::Roc => "roc",
+            IndicatorType::KeltnerChannels => "keltnerchannels",
+            IndicatorType::DonchianChannels => "donchianchannels",
+            IndicatorType::Obv => "obv",
+            IndicatorType::Adl => "adl",
         }
     }
 }
@@ -99,6 +115,14 @@ pub enum IndicatorState {
     Cci,
     WilliamsR,
     Vwap { cum_tpv: f64, cum_vol: f64 },
+    Wma,
+    Hma,
+    Mfi,
+    Roc,
+    KeltnerChannels,
+    DonchianChannels,
+    Obv(f64),
+    Adl(f64),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

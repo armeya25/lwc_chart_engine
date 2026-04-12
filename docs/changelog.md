@@ -1,4 +1,22 @@
 
+## [0.9.6] - 2026-04-12
+
+### 🚀 Core Improvements / Features
+- **Summary**: Modular Indicator Engine & 10 New Indicators.
+- **Details**: Completed a massive overhaul of the technical indicator system. Refactored the monolithic logic into a structured `indicators/` backend and added 10 new high-performance indicators: **DEMA, TEMA, WMA, HMA, MFI, ROC, Keltner Channels, Donchian Channels, OBV, and ADL**.
+
+### 🛠 Build & Workflow Optimizations
+- **Summary**: Polars v0.48.1 Stabilization.
+- **Details**: Successfully resolved multiple breaking API changes introduced in Polars v0.48.1, including `EWMOptions` field requirements, `LazyFrame::collect()` closure type ambiguity, and horizontal aggregation conflicts.
+- **Summary**: Robust DrawingTool Visibility.
+- **Details**: Decoupled core `DrawingTool` interaction methods from the `python-bridge` feature, ensuring internal engine components remain functional in all build configurations.
+
+### ⚙ Internal Refactoring
+- **Summary**: Backend Modularization.
+- **Details**: Migrated `indicators.rs` to a dedicated `indicators/` directory with logic split across domain-specific modules (`oscillators.rs`, `volatility.rs`, `volume.rs`).
+- **Summary**: Unified Indicator Registry.
+- **Details**: Consolidated indicator metadata, default parameters, and mapping logic into a clean `registry.rs` architecture using embedded `.toml` configuration.
+
 ## [0.9.5] - 2026-04-12
 
 ### 🚀 Core Improvements / Features

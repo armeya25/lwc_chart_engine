@@ -11,7 +11,7 @@ def test_chart():
         return
     
     df = pl.read_parquet(parquet_path)
-    df = df.tail(100)
+    #df = df.tail(100)
     #df = df.rename({"date":"time"})
     # 2. Initialize and Show Chart
     chart = Chart(title="Chart Engine v0.6.3 - SubChart Test")

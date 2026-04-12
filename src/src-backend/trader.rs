@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use crate::types::ChartCommand;
-use uuid::Uuid;
+
 
 #[cfg(feature = "python-bridge")]
 use pyo3::prelude::*;
@@ -299,7 +299,7 @@ impl PaperTrader {
 
     #[pyo3(name = "execute", signature = (side, qty, id=None, price=None, tp=None, sl=None, time=None))]
     pub fn py_execute(&mut self, side: String, qty: f64, id: Option<String>, price: Option<f64>, tp: Option<f64>, sl: Option<f64>, time: Option<i64>) -> Vec<String> {
-        let actual_id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
+        let actual_id = id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
         self.execute(actual_id, side, qty, price, tp, sl, time).iter().map(|c| serde_json::to_string(c).unwrap()).collect()
     }
 

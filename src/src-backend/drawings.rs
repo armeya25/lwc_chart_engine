@@ -156,12 +156,19 @@ impl DrawingTool {
         Self::new()
     }
 
+    pub fn remove_position(&mut self, pos_id: String) -> String {
+        let cmd = self._remove_position(&pos_id);
+        serde_json::to_string(&cmd).unwrap()
+    }
+}
+
+// Internal Logic - NOT conditional on python-bridge
+impl DrawingTool {
     pub fn add_marker(&mut self, series_id: String, time: i64, position: String, color: String, shape: String, text: String, chart_id: String) -> (String, String) {
         let (marker_id, cmd) = self._add_marker(&series_id, time, &position, &color, &shape, &text, &chart_id);
         (marker_id, serde_json::to_string(&cmd).unwrap())
     }
 
-    #[pyo3(signature = (start_time, start_price, end_time, end_price, color, border_color, text, category=None, chart_id="chart-0".to_string()))]
     pub fn create_box(&mut self, 
         start_time: i64, start_price: f64, 
         end_time: i64, end_price: f64, 
@@ -184,65 +191,6 @@ impl DrawingTool {
         (line_id, cmd.map(|c| serde_json::to_string(&c).unwrap()))
     }
 
-    #[pyo3(signature = (tool_type, start_time, start_price, end_time, end_price, color, width=1, style=0, visible=true, text="".to_string(), extended=false, chart_id="chart-0".to_string()))]
-    pub fn create_line_tool(&mut self, 
-        tool_type: String, 
-        start_time: i64, start_price: f64, 
-        end_time: i64, end_price: f64, 
-        color: String, width: i32, style: i32, visible: bool, 
-        text: String, extended: bool, chart_id: String) -> (String, String) {
-        
-        let tool_id = Uuid::new_v4().to_string();
-        let tool_data = json!({
-            "id": tool_id,
-            "type": tool_type,
-            "start_time": start_time,
-            "start_price": start_price,
-            "end_time": end_time,
-            "end_price": end_price,
-            "color": color,
-            "width": width,
-            "style": style,
-            "visible": visible,
-            "text": text,
-            "extended": extended,
-            "chart_id": chart_id,
-        });
-
-        self.line_tools.insert(tool_id.clone(), tool_data.clone());
-
-        let mut cmd = ChartCommand::new("create_line_tool", &chart_id);
-        cmd.id = Some(tool_id.clone());
-        cmd.data = Some(tool_data);
-        (tool_id, serde_json::to_string(&cmd).unwrap())
-    }
-
-    pub fn remove_line_tool(&mut self, tool_id: String) -> String {
-        if let Some(data) = self.line_tools.remove(&tool_id) {
-            if let Some(cid) = data.get("chart_id").and_then(|c| c.as_str()) {
-                let mut cmd = ChartCommand::new("remove_line_tool", cid);
-                cmd.id = Some(tool_id);
-                return serde_json::to_string(&cmd).unwrap();
-            }
-        }
-        let mut cmd = ChartCommand::new("remove_line_tool", "chart-0");
-        cmd.id = Some(tool_id);
-        serde_json::to_string(&cmd).unwrap()
-    }
-
-    pub fn clear_line_tools(&mut self) -> String {
-        self.line_tools.clear();
-        let cmd = ChartCommand::new("remove_all_line_tools", "chart-0");
-        serde_json::to_string(&cmd).unwrap()
-    }
-
-    #[pyo3(signature = (chart_id=None))]
-    pub fn clear_positions(&mut self, chart_id: Option<String>) -> Vec<String> {
-        let cmds = self.gen_clear_positions_command(chart_id.as_deref());
-        cmds.iter().map(|c| serde_json::to_string(c).unwrap()).collect()
-    }
-
-    #[pyo3(signature = (start_time, entry_price, sl_price, tp_price, end_time=None, visible=true, type_str="long".to_string(), quantity=1.0, text=None, chart_id="chart-0".to_string()))]
     pub fn create_position(&mut self, 
         start_time: i64, entry_price: f64, sl_price: f64, tp_price: f64, 
         end_time: Option<i64>, visible: bool, type_str: String, quantity: f64, text: Option<String>, chart_id: String) -> (String, Vec<String>) {
@@ -252,12 +200,14 @@ impl DrawingTool {
         (pos_id, cmds_json)
     }
 
-    pub fn remove_position(&mut self, pos_id: String) -> String {
-        let cmd = self._remove_position(&pos_id);
-        serde_json::to_string(&cmd).unwrap()
+    pub fn clear_positions(&mut self, chart_id: Option<String>) -> Vec<String> {
+        let cmds = self.gen_clear_positions_command(chart_id.as_deref());
+        cmds.iter().map(|c| serde_json::to_string(c).unwrap()).collect()
     }
 
-    #[pyo3(signature = (is_opened, start_time=None, entry_price=None, sl_price=None, tp_price=None, pos_type=None, end_time=None, chart_id="chart-0".to_string()))]
+}
+
+impl DrawingTool {
     pub fn sync_active_position(&mut self, 
         is_opened: bool, 
         start_time: Option<i64>, 

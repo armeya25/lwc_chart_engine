@@ -4,7 +4,7 @@
 #[path = "../../src-backend/trader.rs"] mod trader;
 #[path = "../../src-backend/types.rs"] mod types;
 #[path = "../../src-backend/time_utils.rs"] mod time_utils;
-#[path = "../../src-backend/indicators.rs"] mod indicators;
+#[path = "../../src-backend/indicators/mod.rs"] mod indicators;
 
 #[cfg(feature = "python-bridge")]
 use pyo3::prelude::*;

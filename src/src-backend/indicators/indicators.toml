@@ -73,3 +73,50 @@ name = "Triple EMA"
 is_overlay = true
 [tema.params]
 period = { type = "int", min = 1, max = 200, default = 14 }
+
+[wma]
+name = "Weighted Moving Average"
+is_overlay = true
+[wma.params]
+period = { type = "int", min = 1, max = 200, default = 14 }
+
+[hma]
+name = "Hull Moving Average"
+is_overlay = true
+[hma.params]
+period = { type = "int", min = 1, max = 200, default = 14 }
+
+[mfi]
+name = "Money Flow Index"
+is_overlay = false
+[mfi.params]
+period = { type = "int", min = 1, max = 100, default = 14 }
+
+[roc]
+name = "Rate of Change"
+is_overlay = false
+[roc.params]
+period = { type = "int", min = 1, max = 100, default = 14 }
+
+[keltnerchannels]
+name = "Keltner Channels"
+is_overlay = true
+[keltnerchannels.params]
+period = { type = "int", min = 1, max = 200, default = 20 }
+multiplier = { type = "float", min = 0.1, max = 10.0, step = 0.1, default = 2.0 }
+
+[donchianchannels]
+name = "Donchian Channels"
+is_overlay = true
+[donchianchannels.params]
+period = { type = "int", min = 1, max = 200, default = 20 }
+
+[obv]
+name = "On-Balance Volume"
+is_overlay = false
+[obv.params]
+
+[adl]
+name = "Accumulation/Distribution Line"
+is_overlay = false
+[adl.params]
