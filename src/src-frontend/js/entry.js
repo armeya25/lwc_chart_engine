@@ -87,18 +87,18 @@ const startApp = async () => {
             const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.invoke;
             const listen = window.__TAURI__.event ? window.__TAURI__.event.listen : window.__TAURI__.listen;
             
+            if (listen) {
+                listen('command', (event) => {
+                    handleCommand(event.payload);
+                }).catch(e => console.error("Frontend: listen failed", e));
+            }
+            
             if (invoke) {
                 try {
                     await invoke('frontend_ready');
                 } catch (e) {
                     console.error("Frontend: Tauri frontend_ready failed", e);
                 }
-            }
-            
-            if (listen) {
-                listen('command', (event) => {
-                    handleCommand(event.payload);
-                }).catch(e => console.error("Frontend: listen failed", e));
             }
         } else {
             console.warn("Frontend: No Tauri bridge detected, proceeding in standalone mode.");

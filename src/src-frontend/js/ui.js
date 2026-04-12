@@ -107,27 +107,36 @@ export function addLegendItem(chartId, id, name, color, type = 'line', indicator
                 <div class="legend-group-content" id="${chartId}-group-content-${indicatorName}"></div>
             `;
             legendContent.appendChild(group);
-            return;
+            // DO NOT RETURN: Continue to add the main series as a sub-item if it's part of a group
         }
 
         const content = group.querySelector('.legend-group-content');
         let count = parseInt(group.dataset.seriesCount);
         
-        if (count === 1) {
-            if (content) content.classList.remove('hidden');
-        }
-        
-        if (id !== group.dataset.mainSid && !document.getElementById(`${chartId}-legend-item-${id}`)) {
+        if (id === group.dataset.mainSid) {
+            // If it's the main series, just ensure it has a sub-item if there are others
+            // Or always add it for clarity.
+        } else if (!document.getElementById(`${chartId}-legend-item-${id}`)) {
             group.dataset.seriesCount = count + 1;
+        }
+
+        if (!document.getElementById(`${chartId}-legend-item-${id}`)) {
             const item = document.createElement('div');
             item.id = `${chartId}-legend-item-${id}`;
             item.className = 'legend-sub-item';
             item.dataset.seriesId = id;
             item.innerHTML = `
-                <div style="display: flex; align-items: center; font-size: 11px; padding: 1px 0;">
-                    <span class="legend-color" style="background-color: ${color}; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%;"></span>
-                    <span class="legend-sub-label" style="color: var(--text-secondary); margin-right: 4px;">${seriesLabel}:</span>
-                    <span class="legend-value" id="${chartId}-legend-val-${id}">--</span>
+                <div style="display: flex; align-items: center; justify-content: space-between; font-size: 11px; padding: 1px 0;">
+                    <div style="display: flex; align-items: center;">
+                        <span class="legend-color" style="background-color: ${color}; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%;"></span>
+                        <span class="legend-sub-label" style="color: var(--text-secondary); margin-right: 4px;">${seriesLabel}:</span>
+                        <span class="legend-value" id="${chartId}-legend-val-${id}">--</span>
+                    </div>
+                    <div class="legend-sub-actions" style="margin-left: 8px; display: flex; align-items: center; opacity: 0.7;">
+                        <span class="legend-visibility-btn" title="Toggle Visibility" 
+                            style="cursor: pointer; font-size: 10px; transition: opacity 0.2s; padding: 0 2px;" 
+                            onclick="event.stopPropagation(); window.toggleSeriesVisibility('${id}', '${chartId}')">👁️</span>
+                    </div>
                 </div>
             `;
             content.appendChild(item);
@@ -204,11 +213,9 @@ window.toggleIndicatorVisibility = function(indicatorName, chartId) {
     const content = group.querySelector('.legend-group-content');
     const sids = Array.from(content.querySelectorAll('.legend-sub-item')).map(el => el.dataset.seriesId);
     
-    // Also include children from single row if it hasn't been promoted
-    if (group.dataset.seriesCount == 1) {
-        const sid = group.dataset.mainSid;
-        if (sid && !sids.includes(sid)) sids.push(sid);
-    }
+    // Always include the main SID assigned to the header
+    const mainSid = group.dataset.mainSid;
+    if (mainSid && !sids.includes(mainSid)) sids.push(mainSid);
 
     let firstVisible = true;
     if (sids.length > 0) {
@@ -223,6 +230,12 @@ window.toggleIndicatorVisibility = function(indicatorName, chartId) {
     const eye = group.querySelector('.legend-visibility-btn');
     if (eye) eye.style.opacity = newVisible ? '1' : '0.3';
     group.style.opacity = newVisible ? '1' : '0.6';
+
+    // Update sub-item eye icons to match
+    content.querySelectorAll('.legend-sub-item').forEach(subItem => {
+        const subEye = subItem.querySelector('.legend-visibility-btn');
+        if (subEye) subEye.style.opacity = newVisible ? '1' : '0.3';
+    });
     
     // Trigger pane layout rebalance for all charts
     if (window.charts) {
@@ -482,19 +495,7 @@ function setupViewMenu() {
             menu.classList.remove('visible');
         }
     });
-
-    // Keyboard Shortcuts
-    document.addEventListener('keydown', (e) => {
-        const key = e.key.toLowerCase();
-        if (e.ctrlKey || e.metaKey) return; // Don't trigger on ctrl+C etc.
-        
-        if (key === 'l') togglePanel('legend');
-        if (key === 'e') togglePanel('trade-panel');
-        if (key === 'p') togglePanel('positions-panel');
-        if (key === 'i') togglePanel('trend-info');
-    });
 }
-
 
 function setupWindowControls() {
     console.log("Setting up window controls...");
@@ -798,6 +799,133 @@ function makeDraggable(elementId, handleSelector) {
 window.showNotification = showNotification;
 window.toggleLegend = toggleLegend;
 window.addLegendItem = addLegendItem;
+
+// --- Indicator Search Module ---
+window.availableIndicators = [];
+
+export function setAvailableIndicators(indicators) {
+    // indicators is expected to be a dictionary/object from Python: { "sma": { ... }, "rsi": { ... } }
+    window.availableIndicators = Object.entries(indicators).map(([id, schema]) => ({
+        id,
+        name: schema.name || id.toUpperCase(),
+        category: schema.is_overlay ? 'Overlay' : 'Oscillator'
+    }));
+    initIndicatorSearch();
+}
+
+export function initIndicatorSearch() {
+    const input = document.getElementById('indicator-search-input');
+    const results = document.getElementById('indicator-search-results');
+    if (!input || !results) return;
+
+    let selectedIndex = -1;
+    let filteredList = [];
+
+    input.oninput = (e) => {
+        const query = e.target.value.trim();
+        if (!query) {
+            results.classList.add('hidden');
+            return;
+        }
+
+        // Regex Search Support
+        let regex = null;
+        try {
+            // If the query contains regex-like characters, try to treat it as regex
+            // or if it looks like a regex pattern.
+            if (/[\\^$*+?.()|[\]{}]/.test(query)) {
+                regex = new RegExp(query, 'i');
+            }
+        } catch (err) { }
+
+        filteredList = window.availableIndicators.filter(ind => {
+            if (regex) {
+                try { return regex.test(ind.name) || regex.test(ind.id); } catch(e) { return false; }
+            }
+            const q = query.toLowerCase();
+            return ind.name.toLowerCase().includes(q) || ind.id.toLowerCase().includes(q);
+        });
+
+        selectedIndex = filteredList.length > 0 ? 0 : -1;
+        renderResults();
+    };
+
+    input.onkeydown = (e) => {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            selectedIndex = Math.min(selectedIndex + 1, filteredList.length - 1);
+            renderResults();
+            ensureVisible();
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            selectedIndex = Math.max(selectedIndex - 1, 0);
+            renderResults();
+            ensureVisible();
+        } else if (e.key === 'Enter') {
+            if (selectedIndex >= 0 && filteredList[selectedIndex]) {
+                addIndicator(filteredList[selectedIndex].id);
+                input.value = '';
+                results.classList.add('hidden');
+            }
+        } else if (e.key === 'Escape') {
+            results.classList.add('hidden');
+            input.blur();
+        }
+    };
+
+    function ensureVisible() {
+        const selectedEl = results.querySelector('.indicator-result-item.selected');
+        if (selectedEl) {
+            selectedEl.scrollIntoView({ block: 'nearest' });
+        }
+    }
+
+    function renderResults() {
+        if (filteredList.length === 0) {
+            results.classList.add('hidden');
+            return;
+        }
+
+        results.innerHTML = filteredList.map((ind, i) => `
+            <div class="indicator-result-item ${i === selectedIndex ? 'selected' : ''}" onclick="window.addIndicator('${ind.id}'); document.getElementById('indicator-search-input').value=''; document.getElementById('indicator-search-results').classList.add('hidden');">
+                <span>${ind.name}</span>
+                <span class="indicator-category">${ind.category}</span>
+            </div>
+        `).join('');
+
+        results.classList.remove('hidden');
+    }
+
+    // Hide results when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!input.contains(e.target) && !results.contains(e.target)) {
+            results.classList.add('hidden');
+        }
+    });
+
+    // Auto-select on focus if there's text
+    input.onfocus = () => {
+        if (input.value.trim()) renderResults();
+    };
+}
+
+export function addIndicator(type) {
+    if (window.__TAURI__) {
+        const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.invoke;
+        if (invoke) {
+            invoke('emit_to_backend', { 
+                action: 'add_indicator', 
+                data: { type: type } 
+            });
+            showNotification(`Added ${type.toUpperCase()}`, 'success', 2000);
+        }
+    } else {
+        console.log("Standalone mode: addIndicator", type);
+    }
+}
+
+window.setAvailableIndicators = setAvailableIndicators;
+window.addIndicator = addIndicator;
 window.toggleTrendInfo = toggleTrendInfo;
 window.scrollToRealTime = scrollToRealTime;
 window.changeLayout = changeLayout;
@@ -859,6 +987,13 @@ window.showIndicatorSettings = function(indicatorName) {
 window.closeModal = function() {
     const overlay = document.getElementById('modal-overlay');
     if (overlay) overlay.classList.remove('active');
+};
+
+window.toggleInfoPanel = function() {
+    const el = document.getElementById('info-panel');
+    if (el) {
+        el.classList.toggle('collapsed');
+    }
 };
 
 // --- Initialization ---

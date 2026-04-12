@@ -1,7 +1,10 @@
 use crate::types::{IndicatorConfig, IndicatorType, Point, IndicatorState};
+use once_cell::sync::Lazy;
 use crate::time_utils;
 use polars::prelude::*;
 use serde_json::json;
+#[cfg(feature = "python-bridge")]
+use pyo3::prelude::*;
 use polars::series::ops::NullBehavior;
 use polars::prelude::RollingOptionsFixedWindow;
 
@@ -427,32 +430,20 @@ pub fn calculate_step(
     }
 }
 
+#[cfg(feature = "python-bridge")]
+#[pyfunction]
+pub fn py_get_indicator_schemas() -> String {
+    get_indicator_schemas()
+}
+
+static INDICATOR_SCHEMAS: Lazy<serde_json::Value> = Lazy::new(|| {
+    let toml_str = include_str!("indicators.toml");
+    let toml_val: toml::Value = toml::from_str(toml_str).expect("Failed to parse indicators.toml");
+    serde_json::to_value(&toml_val).expect("Failed to convert indicator TOML to JSON")
+});
+
 pub fn get_indicator_schemas() -> String {
-    json!({
-        "sma": {"period": {"type": "int", "min": 1, "max": 200, "default": 14}},
-        "ema": {"period": {"type": "int", "min": 1, "max": 200, "default": 14}},
-        "rsi": {"period": {"type": "int", "min": 1, "max": 100, "default": 14}},
-        "macd": {
-            "fast": {"type": "int", "min": 1, "max": 100, "default": 12},
-            "slow": {"type": "int", "min": 1, "max": 100, "default": 26},
-            "signal": {"type": "int", "min": 1, "max": 50, "default": 9}
-        },
-        "bollingerbands": {
-            "period": {"type": "int", "min": 1, "max": 200, "default": 14},
-            "std_dev": {"type": "float", "min": 0.1, "max": 10.0, "step": 0.1, "default": 2.0}
-        },
-        "atr": {"period": {"type": "int", "min": 1, "max": 100, "default": 14}},
-        "stochastic": {
-            "period": {"type": "int", "min": 1, "max": 100, "default": 14},
-            "smooth_k": {"type": "int", "min": 1, "max": 50, "default": 3},
-            "smooth_d": {"type": "int", "min": 1, "max": 50, "default": 3}
-        },
-        "cci": {"period": {"type": "int", "min": 1, "max": 100, "default": 14}},
-        "vwap": {},
-        "williamsr": {"period": {"type": "int", "min": 1, "max": 100, "default": 14}},
-        "dema": {"period": {"type": "int", "min": 1, "max": 200, "default": 14}},
-        "tema": {"period": {"type": "int", "min": 1, "max": 200, "default": 14}}
-    }).to_string()
+    INDICATOR_SCHEMAS.to_string()
 }
 
 pub fn get_indicator_params_schema(ind_type: IndicatorType) -> serde_json::Value {
@@ -472,7 +463,7 @@ pub fn get_indicator_params_schema(ind_type: IndicatorType) -> serde_json::Value
         IndicatorType::Dema => "dema",
         IndicatorType::Tema => "tema",
     };
-    all.get(key).cloned().unwrap_or(serde_json::json!({}))
+    all.get(key).and_then(|v| v.get("params")).cloned().unwrap_or(serde_json::json!({}))
 }
 
 pub fn get_sub_series_info(ind_type: IndicatorType) -> Vec<(&'static str, &'static str, &'static str)> {

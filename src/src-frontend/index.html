@@ -35,13 +35,19 @@
                         </div>
                     </div>
                     <div class="separator"></div>
-                    <div class="menu-item" onclick="togglePanel('legend')">Legend <span class="menu-shortcut">L</span></div>
-                    <div class="menu-item" onclick="togglePanel('trade-panel')">Execution <span class="menu-shortcut">E</span></div>
-                    <div class="menu-item" onclick="togglePanel('positions-panel')">Positions <span class="menu-shortcut">P</span></div>
-                    <div class="menu-item" onclick="togglePanel('trend-info')">Trend Info <span class="menu-shortcut">I</span></div>
+                    <div class="menu-item" onclick="togglePanel('legend')">Legend</div>
+                    <div class="menu-item" onclick="togglePanel('trade-panel')">Execution</div>
+                    <div class="menu-item" onclick="togglePanel('positions-panel')">Positions</div>
+                    <div class="menu-item" onclick="togglePanel('trend-info')">Trend Info</div>
                     <div class="separator"></div>
-                    <div class="menu-item" onclick="scrollToRealTime()">Reset Scale <span class="menu-shortcut">R</span></div>
+                    <div class="menu-item" onclick="scrollToRealTime()">Reset Scale</div>
                 </div>
+            </div>
+
+            <div class="indicator-search-container">
+                <span class="indicator-search-icon">ƒx</span>
+                <input type="text" id="indicator-search-input" placeholder="Indicators..." autocomplete="off">
+                <div id="indicator-search-results" class="indicator-search-results hidden"></div>
             </div>
         </div>
         <div class="titlebar-right">

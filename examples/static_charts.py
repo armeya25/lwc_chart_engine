@@ -9,7 +9,7 @@ def test_chart():
     if not os.path.exists(parquet_path):
         print(f"Error: {parquet_path} not found.")
         return
-        
+    
     df = pl.read_parquet(parquet_path)
     df = df.tail(100)
     #df = df.rename({"date":"time"})
@@ -20,7 +20,7 @@ def test_chart():
     # 3. Configure Layout and Series
     subcharts = chart.set_layout("single")
     ch1 = subcharts[0].create_candlestick_series(name="BTC/USD")
-    
+    ch1.set_auto_volume(False)
     #ch1.set_auto_volume(False)
 
     print(f"Series created: {ch1}")

@@ -1,0 +1,75 @@
+[sma]
+name = "Simple Moving Average"
+is_overlay = true
+[sma.params]
+period = { type = "int", min = 1, max = 200, default = 14 }
+
+[ema]
+name = "Exponential Moving Average"
+is_overlay = true
+[ema.params]
+period = { type = "int", min = 1, max = 200, default = 14 }
+
+[rsi]
+name = "Relative Strength Index"
+is_overlay = false
+[rsi.params]
+period = { type = "int", min = 1, max = 100, default = 14 }
+
+[macd]
+name = "MACD"
+is_overlay = false
+[macd.params]
+fast = { type = "int", min = 1, max = 100, default = 12 }
+slow = { type = "int", min = 1, max = 100, default = 26 }
+signal = { type = "int", min = 1, max = 50, default = 9 }
+
+[bollingerbands]
+name = "Bollinger Bands"
+is_overlay = true
+[bollingerbands.params]
+period = { type = "int", min = 1, max = 200, default = 14 }
+std_dev = { type = "float", min = 0.1, max = 10.0, step = 0.1, default = 2.0 }
+
+[atr]
+name = "Average True Range"
+is_overlay = false
+[atr.params]
+period = { type = "int", min = 1, max = 100, default = 14 }
+
+[stochastic]
+name = "Stochastic Oscillator"
+is_overlay = false
+[stochastic.params]
+period = { type = "int", min = 1, max = 100, default = 14 }
+smooth_k = { type = "int", min = 1, max = 50, default = 3 }
+smooth_d = { type = "int", min = 1, max = 50, default = 3 }
+
+[cci]
+name = "Commodity Channel Index"
+is_overlay = false
+[cci.params]
+period = { type = "int", min = 1, max = 100, default = 14 }
+
+[vwap]
+name = "VWAP"
+is_overlay = true
+[vwap.params]
+
+[williamsr]
+name = "Williams %R"
+is_overlay = false
+[williamsr.params]
+period = { type = "int", min = 1, max = 100, default = 14 }
+
+[dema]
+name = "Double EMA"
+is_overlay = true
+[dema.params]
+period = { type = "int", min = 1, max = 200, default = 14 }
+
+[tema]
+name = "Triple EMA"
+is_overlay = true
+[tema.params]
+period = { type = "int", min = 1, max = 200, default = 14 }

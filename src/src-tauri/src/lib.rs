@@ -154,5 +154,6 @@ fn chart_engine_lib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(time_utils::py_set_backend_timezone, m)?)?;
     m.add_function(wrap_pyfunction!(time_utils::py_ensure_timestamp, m)?)?;
     m.add_function(wrap_pyfunction!(time_utils::py_process_polars_data, m)?)?;
+    m.add_function(wrap_pyfunction!(indicators::py_get_indicator_schemas, m)?)?;
     Ok(())
 }

@@ -53,3 +53,4 @@ src/chart_engine/chart_engine_lib.*
 src/chart_engine/chart_engine
 wheels/
 scratch
+src/src-tauri/Cargo.lock

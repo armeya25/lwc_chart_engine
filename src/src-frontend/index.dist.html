@@ -35,14 +35,21 @@
                         </div>
                     </div>
                     <div class="separator"></div>
-                    <div class="menu-item" onclick="togglePanel('legend')">Legend <span class="menu-shortcut">L</span></div>
-                    <div class="menu-item" onclick="togglePanel('trade-panel')">Execution <span class="menu-shortcut">E</span></div>
-                    <div class="menu-item" onclick="togglePanel('positions-panel')">Positions <span class="menu-shortcut">P</span></div>
-                    <div class="menu-item" onclick="togglePanel('trend-info')">Trend Info <span class="menu-shortcut">I</span></div>
+                    <div class="menu-item" onclick="togglePanel('legend')">Legend</div>
+                    <div class="menu-item" onclick="togglePanel('trade-panel')">Execution</div>
+                    <div class="menu-item" onclick="togglePanel('positions-panel')">Positions</div>
+                    <div class="menu-item" onclick="togglePanel('info-panel')">Info Panel</div>
                     <div class="separator"></div>
-                    <div class="menu-item" onclick="scrollToRealTime()">Reset Scale <span class="menu-shortcut">R</span></div>
+                    <div class="menu-item" onclick="scrollToRealTime()">Reset Scale</div>
                 </div>
             </div>
+
+            <div class="indicator-search-container">
+                <span class="indicator-search-icon">ƒx</span>
+                <input type="text" id="indicator-search-input" placeholder="Indicators..." autocomplete="off">
+                <div id="indicator-search-results" class="indicator-search-results hidden"></div>
+            </div>
+            
         </div>
         <div class="titlebar-right">
             <div class="titlebar-button" id="titlebar-minimize">
@@ -94,23 +101,20 @@
         </svg>
     </div>
 
-    <div id="info-panel">
-        <div id="trend-info">
-            <div id="trend-header" onclick="toggleTrendInfo()">
-                <span>Trend</span>
-                <span class="toggle-icon">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="6 9 12 15 18 9"></polyline>
-                    </svg>
-                </span>
-            </div>
-            <div id="trend-content">
-                <!-- Dynamic rows are added here on the fly -->
-            </div>
+    <div id="info-panel" class="hidden">
+        <div id="info-header" onclick="toggleInfoPanel()">
+            <span>Info</span>
+            <span class="toggle-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            </span>
         </div>
-
+        <div id="info-content">
+            <!-- Dynamic rows are added here on the fly -->
         </div>
+    </div>
     </div>
 
     <div id="positions-panel" class="hidden">

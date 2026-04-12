@@ -1,3 +1,46 @@
+
+## [0.9.5] - 2026-04-12
+
+### 🚀 Core Improvements / Features
+- **Summary**: Group-Synced Indicator Visibility.
+- **Details**: Redesigned the indicator visibility engine to ensure that hiding a multi-line indicator (like MACD or Bollinger Bands) correctly toggles all sub-series and legend items.
+- **Summary**: Cross-Type Indicator Color Rotation.
+- **Details**: Implemented a global color rotation system in the Rust backend. Overlay indicators (SMA, TEMA, DEMA) added sequentially now automatically receive distinct colors from the high-contrast palette.
+
+### 🎯 UI & API Enhancements
+- **Summary**: Premium Info Panel (v1.0 Refactor).
+- **Details**: Rebranded and refactored the legacy Trend Panel into a consolidated "Info Panel". Added glassmorphic auto-expansion on data arrival and intelligent sentiment color-coding (Bullish/Bearish/Neutral).
+- **Summary**: Unified Indicator Legend.
+- **Details**: Enhanced the legend to always include the primary series in the sub-item list, providing a 1:1 visual mapping for all indicator components.
+
+### ⚙ Internal Refactoring
+- **Summary**: Python API Alignment.
+- **Details**: Renamed `chart.py` methods to `set_info_panel_visibility` and `update_info_panel` to match the new UI branding. Fixed race conditions in the legend item creation sequence.
+
+## [0.9.3] - 2026-04-12
+
+### 🚀 Core Improvements / Features
+- **Summary**: Integrated Indicator Search Engine.
+- **Details**: Implemented a titlebar-integrated search box that enables real-time discovery of technical indicators. Supported both standard text filtering and Regular Expression (Regex) matching (e.g., `^SMA`, `RSI|MACD`).
+- **Summary**: Rust-Native Position Coordination.
+- **Details**: Migrated the 1:1 synchronization between visual position tools (SL/TP lines) and the paper trading logic entirely into the Rust core, eliminating execution lag and improving architectural consistency.
+
+### 🛠 Build & Workflow Optimizations
+- **Summary**: Structured AI Project Skills.
+- **Details**: Overhauled project guidance in `.agent/skills/` to prioritize Rust implementations and ensure consistent environment management across all AI sessions.
+- **Summary**: Automated Production Sync.
+- **Details**: Optimized the frontend build pipeline to ensure that all UI enhancements are automatically propagated to both development and production templates.
+
+### 🎯 UI & API Enhancements
+- **Summary**: UI Shortcut De-cluttering.
+- **Details**: Removed all legacy keyboard shortcuts (Legend, Execution, Positions, Trend Info) and their visual hints to streamline the interface and prevent accidental triggers.
+- **Summary**: Dynamic Indicator Metadata Synchronization.
+- **Details**: The backend now transmits the full schema of available indicators to the UI on startup, ensuring the search box is always synchronized with the engine.
+
+### ⚙ Internal Refactoring
+- **Summary**: Unified Action Routing.
+- **Details**: Fixed initialization race conditions in `entry.js` and added missing PyO3 bindings for indicator schemas, ensuring robust communication between the UI and Rust backend.
+
 ## [0.9.2] - 2026-04-11
 
 ### 🚀 Core Improvements / Features

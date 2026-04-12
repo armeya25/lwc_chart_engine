@@ -1,7 +1,7 @@
 /* Chart Legend & Market Data Status Lines */
 
-/* --- Trend & Price Info --- */
-#trend-info {
+/* --- Info Panel --- */
+#info-panel {
     position: relative;
     z-index: 10;
     padding: 0;
@@ -19,7 +19,11 @@
     flex-direction: column;
 }
 
-.trend-header, .legend-header {
+#info-panel.hidden {
+    display: none;
+}
+
+.info-header, .legend-header {
     padding: 12px 16px;
     cursor: pointer;
     display: flex;
@@ -33,30 +37,31 @@
     color: var(--text-secondary);
 }
 
-.trend-header:hover, .legend-header:hover {
+.info-header:hover, .legend-header:hover {
     color: var(--text-primary);
     background: rgba(255, 255, 255, 0.02);
 }
 
-.trend-row {
+.info-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
     font-size: 13px;
+    padding: 2px 16px;
 }
 
-.trend-row span:first-child { color: var(--text-secondary); font-weight: 500; }
-.trend-row span:first-child::after { content: ':'; margin-right: 4px; }
+.info-row span:first-child { color: var(--text-secondary); font-weight: 500; }
+.info-row span:first-child::after { content: ':'; margin-right: 4px; }
 
-.trend-val {
+.info-val {
     font-family: var(--font-mono);
     font-weight: 700;
     text-transform: capitalize;
     transition: color 0.3s ease, text-shadow 0.3s ease;
 }
-.trend-val.trend-up { color: #00e676; text-shadow: 0 0 8px rgba(0, 230, 118, 0.6); }
-.trend-val.trend-down { color: #ef5350; text-shadow: 0 0 8px rgba(239, 83, 80, 0.6); }
-.trend-val.trend-neutral { color: #ffd740; text-shadow: 0 0 8px rgba(255, 215, 64, 0.5); }
+.info-val.info-up { color: #00e676; text-shadow: 0 0 8px rgba(0, 230, 118, 0.6); }
+.info-val.info-down { color: #ef5350; text-shadow: 0 0 8px rgba(239, 83, 80, 0.6); }
+.info-val.info-neutral { color: #ffd740; text-shadow: 0 0 8px rgba(255, 215, 64, 0.5); }
 
 /* --- Modern Legend (Top-Left) --- */
 .chart-legend {
@@ -156,8 +161,8 @@
 .legend-group-content { padding-left: 20px; display: flex; flex-direction: column; gap: 1px; }
 
 /* Collapsed States */
-.collapsed .trend-content, .collapsed .legend-content { display: none; }
-#trend-info.collapsed, .chart-legend.collapsed { width: auto; min-width: 120px; }
+.collapsed #info-content, .collapsed .legend-content { display: none; }
+#info-panel.collapsed, .chart-legend.collapsed { width: auto; min-width: 120px; }
 .collapsed .toggle-icon { transform: rotate(-90deg); }
-#trend-info.collapsed .toggle-icon { transform: rotate(90deg); }
-.chart-legend.collapsed .toggle-icon, #trend-info.collapsed .toggle-icon { transform: rotate(90deg); }
+#info-panel.collapsed .toggle-icon { transform: rotate(-90deg); }
+.chart-legend.collapsed .toggle-icon { transform: rotate(-90deg); }

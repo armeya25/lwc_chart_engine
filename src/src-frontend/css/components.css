@@ -266,3 +266,92 @@
 }
 .menu-item.has-submenu:hover .submenu { display: block; }
 @keyframes fadeIn { from { opacity: 0; transform: translateX(-5px); } to { opacity: 1; transform: translateX(0); } }
+
+/* --- Indicator Search Box --- */
+.indicator-search-container {
+    position: relative;
+    margin-left: 12px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.indicator-search-icon {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent-color);
+    opacity: 0.8;
+    font-style: italic;
+    font-family: var(--font-mono);
+}
+
+#indicator-search-input {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-sm);
+    padding: 4px 12px;
+    color: var(--text-primary);
+    font-size: 11px;
+    font-weight: 500;
+    width: 140px;
+    transition: all var(--transition-fast);
+    outline: none;
+}
+
+#indicator-search-input:focus {
+    width: 200px;
+    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.indicator-search-results {
+    position: absolute;
+    top: 100%;
+    left: 24px;
+    min-width: 200px;
+    background: rgba(20, 20, 30, 0.98);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    margin-top: 6px;
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 10002;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
+    animation: slideDown 0.2s ease-out;
+}
+
+.indicator-search-results.hidden { display: none; }
+
+.indicator-result-item {
+    padding: 8px 14px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    white-space: nowrap;
+}
+
+.indicator-result-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.indicator-result-item.selected {
+    background: var(--accent-color);
+    color: white;
+}
+
+.indicator-category {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    opacity: 0.4;
+    font-weight: 700;
+    margin-left: 12px;
+}

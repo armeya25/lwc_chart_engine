@@ -552,8 +552,8 @@ export const CommandHandlers = {
         }
         showNotification(cmd.data.message, cmd.data.type || 'info', cmd.data.duration || 3000, cmd.data.text_color || null);
     },
-    set_trend_info_visibility: (_targetChart, cmd) => {
-        const panel = document.getElementById('trend-info');
+    set_info_panel_visibility: (_targetChart, cmd) => {
+        const panel = document.getElementById('info-panel');
         if (panel) panel.classList.toggle('hidden', !cmd.data.visible);
     },
     set_legend_visibility: (_targetChart, cmd) => {
@@ -580,31 +580,38 @@ export const CommandHandlers = {
             window.positionsUserHidden = !visible;
         }
     },
-    update_trend: (_targetChart, cmd) => {
+    update_info_panel: (_targetChart, cmd) => {
         const d = cmd.data || {};
-        const content = document.getElementById('trend-content');
+        const content = document.getElementById('info-content');
         if (!content) return;
 
         Object.entries(d).forEach(([key, val]) => {
-            const elId = `trend-${key.toLowerCase()}`;
+            const elId = `info-${key.toLowerCase().replace(/\s+/g, '-')}`;
             let row = document.getElementById(elId);
             if (!row) {
                 row = document.createElement('div');
-                row.className = 'trend-row';
+                row.className = 'info-row';
                 row.id = elId;
-                row.innerHTML = `<span>${key.toUpperCase()}</span><span class="trend-val">NA</span>`;
+                row.innerHTML = `<span>${key}</span><span class="info-val">NA</span>`;
                 content.appendChild(row);
             }
-            const valEl = row.querySelector('.trend-val');
+            const valEl = row.querySelector('.info-val');
             if (valEl) {
                 valEl.textContent = val || 'NA';
-                valEl.className = `trend-val trend-${String(val).toLowerCase() || 'neutral'}`;
+                
+                // Color coding based on value
+                const lowerVal = String(val).toLowerCase();
+                valEl.classList.remove('info-up', 'info-down', 'info-neutral');
+                if (lowerVal.includes('up') || lowerVal.includes('bull') || lowerVal.includes('buy')) valEl.classList.add('info-up');
+                else if (lowerVal.includes('down') || lowerVal.includes('bear') || lowerVal.includes('sell')) valEl.classList.add('info-down');
+                else if (lowerVal.includes('neutral') || lowerVal.includes('sideway')) valEl.classList.add('info-neutral');
             }
         });
 
-        const panel = document.getElementById('trend-info');
+        // Ensure panel is visible when data arrives
+        const panel = document.getElementById('info-panel');
         if (panel) {
-            if (panel.style.display === 'none') panel.style.display = '';
+            panel.classList.remove('hidden');
             panel.classList.remove('collapsed');
         }
     },
@@ -746,6 +753,11 @@ export const CommandHandlers = {
                     });
                 }
             }
+        }
+    },
+    set_available_indicators: (_targetChart, cmd) => {
+        if (window.setAvailableIndicators) {
+            window.setAvailableIndicators(cmd.data);
         }
     }
 };

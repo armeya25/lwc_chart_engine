@@ -3,13 +3,13 @@ use serde_json::{json, Value};
 #[cfg(feature = "python-bridge")]
 use pyo3::prelude::*;
 use crate::drawings::DrawingTool;
-use crate::trader::PaperTrader;
+use crate::trader::{PaperTrader, Position};
 use crate::types::{ChartCommand, IndicatorConfig, IndicatorType, Point};
 use crate::indicators;
 use uuid::Uuid;
 #[cfg(feature = "python-bridge")]
 use pyo3_polars::PyDataFrame;
-use polars::prelude::{DataFrame, DataType};
+use polars::prelude::{DataFrame, DataType, PolarsResult, Series as PolarsSeries, NamedFrom};
 use crate::time_utils;
 
 #[cfg_attr(feature = "python-bridge", pyclass)]
@@ -364,12 +364,28 @@ impl Chart {
 
     pub fn add_indicator_v2(
         &mut self,
-        source_sid: String,
+        mut source_sid: String,
         ind_type_str: String,
         params_json: String,
         chart_id: String,
     ) -> Result<String, String> {
         use crate::types::IndicatorType;
+
+        // --- 1. Auto-Targeting ---
+        // If the requested source series is missing or empty, find the first series with data
+        let mut best_sid = source_sid.clone();
+        if !self.series.contains_key(&source_sid) || self.series.get(&source_sid).unwrap().data.is_empty() {
+            // Priority: 1. Main series with data, 2. First candlestick series with data, 3. Any series with data
+            let found_sid = self.series.iter()
+                .filter(|(_, s)| !s.data.is_empty())
+                .map(|(id, _)| id.clone())
+                .next();
+            
+            if let Some(fs) = found_sid {
+                best_sid = fs;
+            }
+        }
+        source_sid = best_sid;
 
         let ind_type = match ind_type_str.to_lowercase().as_str() {
             "sma" => IndicatorType::Sma,
@@ -483,9 +499,9 @@ impl Chart {
             let final_color = if let Some(c) = params.get("color").and_then(|v| v.as_str()) {
                 c.to_string()
             } else if role == "main" {
-                // Count existing indicators of same type to rotate color
+                // Count all existing indicators on this source to rotate colors across different types
                 let count = if let Some(source) = self.series.get(&source_sid) {
-                    source.indicators.iter().filter(|i| i.indicator_type == ind_type).count()
+                    source.indicators.len()
                 } else { 0 };
                 palette[count % palette.len()].to_string()
             } else {
@@ -508,7 +524,7 @@ impl Chart {
 
         let mut data_cmds = Vec::new();
         {
-            let source = self.series.get_mut(&source_sid).ok_or("Source series not found")?;
+            let source = self.series.get_mut(&source_sid).ok_or(format!("Source series {} not found", source_sid))?;
             let config = IndicatorConfig {
                 indicator_type: ind_type,
                 target_series_id: main_id.clone(),
@@ -518,8 +534,18 @@ impl Chart {
             };
             source.indicators.push(config.clone());
 
-            if let Some(df) = &source.data_df {
-                if let Ok(cmd) = indicators::calculate_batch(&config, df) {
+            // --- 2. Historical Fallback ---
+            // If the dataframe cache is missing (e.g. after updates), reconstruct it from buffer
+            let df_to_use = if let Some(df) = &source.data_df {
+                Some(df.clone())
+            } else if !source.data.is_empty() {
+                points_to_df(&source.data).ok()
+            } else {
+                None
+            };
+
+            if let Some(df) = df_to_use {
+                if let Ok(cmd) = indicators::calculate_batch(&config, &df) {
                     data_cmds.push(cmd);
                 }
             }
@@ -597,6 +623,32 @@ impl Chart {
             ));
         }
         cmds
+    }
+
+    pub fn create_position(&mut self, 
+        start_time: i64, entry_price: f64, sl_price: f64, tp_price: f64, 
+        end_time: Option<i64>, visible: bool, side: String, quantity: f64, text: Option<String>, chart_id: String) -> (String, Vec<String>) {
+        
+        // 1. Create visual tool in toolbox
+        let (pos_id, cmds) = self.toolbox._create_position(start_time, entry_price, sl_price, tp_price, end_time, visible, &side, quantity, text, &chart_id);
+        
+        // 2. Register in trader
+        let trader_side = if side.to_lowercase() == "long" { "buy".to_string() } else { "sell".to_string() };
+        let pos = Position {
+            id: pos_id.clone(),
+            side: trader_side,
+            qty: quantity,
+            entry: entry_price,
+            price: entry_price,
+            tp: Some(tp_price),
+            sl: Some(sl_price),
+            pnl: 0.0,
+            time: Some(start_time),
+        };
+        self.trader.add_position(pos);
+        
+        let cmds_json = cmds.iter().map(|c| serde_json::to_string(c).unwrap()).collect();
+        (pos_id, cmds_json)
     }
 
     pub fn trader_execute(&mut self, side: String, qty: f64, price: Option<f64>, tp: Option<f64>, sl: Option<f64>, time: Option<i64>, series_id: Option<String>) -> Vec<String> {
@@ -719,4 +771,32 @@ impl Chart {
     pub fn py_trader_execute(&mut self, side: String, qty: f64, price: Option<f64>, tp: Option<f64>, sl: Option<f64>, time: Option<i64>, series_id: Option<String>) -> Vec<String> {
         self.trader_execute(side, qty, price, tp, sl, time, series_id)
     }
+
+    #[pyo3(name = "create_position", signature = (start_time, entry_price, sl_price, tp_price, end_time=None, visible=true, side="long".to_string(), quantity=1.0, text=None, chart_id="chart-0".to_string()))]
+    pub fn py_create_position(&mut self, 
+        start_time: i64, entry_price: f64, sl_price: f64, tp_price: f64, 
+        end_time: Option<i64>, visible: bool, side: String, quantity: f64, text: Option<String>, chart_id: String) -> (String, Vec<String>) {
+        self.create_position(start_time, entry_price, sl_price, tp_price, end_time, visible, side, quantity, text, chart_id)
+    }
+}
+
+fn points_to_df(points: &[Point]) -> PolarsResult<DataFrame> {
+    let times: Vec<i64> = points.iter().map(|p| p.time).collect();
+    let opens: Vec<f64> = points.iter().map(|p| p.open).collect();
+    let highs: Vec<f64> = points.iter().map(|p| p.high).collect();
+    let lows: Vec<f64> = points.iter().map(|p| p.low).collect();
+    let closes: Vec<f64> = points.iter().map(|p| p.close).collect();
+    // Some points might not have volume, handle gracefully
+    let volumes: Vec<f64> = points.iter().map(|p| p.volume.unwrap_or(0.0)).collect();
+
+    let df = DataFrame::new(vec![
+        PolarsSeries::new("time".into(), times).into(),
+        PolarsSeries::new("open".into(), opens).into(),
+        PolarsSeries::new("high".into(), highs).into(),
+        PolarsSeries::new("low".into(), lows).into(),
+        PolarsSeries::new("close".into(), closes).into(),
+        PolarsSeries::new("volume".into(), volumes).into(),
+    ])?;
+    
+    Ok(df)
 }

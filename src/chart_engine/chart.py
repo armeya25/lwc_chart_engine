@@ -352,6 +352,12 @@ class Chart:
         # Auto-bind trading handler for unified API
         self.set_on_trade(self.trader_handle_callback)
 
+        # Send available indicators to frontend
+        self._send_command({
+            "action": "set_available_indicators", 
+            "data": _get_indicator_schemas()
+        })
+
         self._initialized = True
         atexit.register(self.exit)
 
@@ -413,6 +419,14 @@ class Chart:
                     data = msg.get("data", {})
                     ind_name = data.get("indicator")
                     self.remove_indicator(ind_name)
+                    continue
+
+                if msg.get("action") == "add_indicator":
+                    data = msg.get("data", {})
+                    ind_type = data.get("type")
+                    if ind_type:
+                        # Add to main series of chart-0 for now
+                        self.series[self.main_series_id].add_indicator_v2(ind_type)
                     continue
 
                 if msg.get("action") == "trade" and self.on_trade:
@@ -535,14 +549,14 @@ class Chart:
     def enable_tooltip(self) -> None: self.set_tooltip(True)
     def disable_tooltip(self) -> None: self.set_tooltip(False)
     
-    def set_trend_info_visibility(self, v: bool) -> None: 
-        self._send_command({"action": "set_trend_info_visibility", "data": {"visible": v}})
+    def set_info_panel_visibility(self, v: bool) -> None: 
+        self._send_command({"action": "set_info_panel_visibility", "data": {"visible": v}})
 
     def set_legend_visibility(self, v: bool) -> None:
         self._send_command({"action": "set_legend_visibility", "data": {"visible": v}})
 
-    def update_trend_info(self, data: Dict[str, Any]) -> None:
-        self._send_command({"action": "update_trend", "data": data})
+    def update_info_panel(self, data: Dict[str, Any]) -> None:
+        self._send_command({"action": "update_info_panel", "data": data})
 
     def set_crosshair_mode(self, mode: int = 0) -> None:
         # 0 = Normal, 1 = Magnet
@@ -614,12 +628,7 @@ class Chart:
     def create_long_position(self, start_time: Any, entry_price: float, sl_price: float, tp_price: float, end_time: Any = None, visible: bool = True, quantity: float = 1.0, text: Optional[str] = None, chart_id: str = "chart-0") -> str:
         st = _ensure_timestamp(start_time)
         et = _ensure_timestamp(end_time)
-        pid, cmds = self._rust_toolbox.create_position(st, entry_price, sl_price, tp_price, et, visible, "long", quantity, text, chart_id)
-        
-        # Track in PaperTrader
-        from chart_engine import Position
-        pos = Position(id=pid, side="buy", qty=quantity, entry=entry_price, price=entry_price, tp=tp_price, sl=sl_price, time=st)
-        self._rust_trader.add_position(pos)
+        pid, cmds = self._rust_chart.create_position(st, entry_price, sl_price, tp_price, et, visible, "long", quantity, text, chart_id)
         
         for c in cmds: self._send_command(json.loads(c))
         return pid
@@ -627,12 +636,7 @@ class Chart:
     def create_short_position(self, start_time: Any, entry_price: float, sl_price: float, tp_price: float, end_time: Any = None, visible: bool = True, quantity: float = 1.0, text: Optional[str] = None, chart_id: str = "chart-0") -> str:
         st = _ensure_timestamp(start_time)
         et = _ensure_timestamp(end_time)
-        pid, cmds = self._rust_toolbox.create_position(st, entry_price, sl_price, tp_price, et, visible, "short", quantity, text, chart_id)
-        
-        # Track in PaperTrader
-        from chart_engine import Position
-        pos = Position(id=pid, side="sell", qty=quantity, entry=entry_price, price=entry_price, tp=tp_price, sl=sl_price, time=st)
-        self._rust_trader.add_position(pos)
+        pid, cmds = self._rust_chart.create_position(st, entry_price, sl_price, tp_price, et, visible, "short", quantity, text, chart_id)
         
         for c in cmds: self._send_command(json.loads(c))
         return pid
