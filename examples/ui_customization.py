@@ -37,7 +37,6 @@ def run_ui_demo():
     # 4. Toggle UI Components
     print("Customizing UI components...")
     chart.enable_tooltip()          # Show floating price info on crosshair
-    chart.enable_layout_toolbar()   # Show the side layout selection menu
     chart.set_legend_visibility(True)
     
     # 5. Set Crosshair Mode (Magnet mode for snapping to bars)

@@ -108,18 +108,24 @@
             </div>
         </div>
 
-        <div id="positions-panel" class="hidden">
-            <div id="positions-header">
-                <div class="trading-tabs">
-                    <span id="tab-active" class="trading-tab active">Active</span>
-                    <span id="tab-history" class="trading-tab">History</span>
-                </div>
-                <div id="performance-summary">
-                    <span id="total-pnl" class="pnl-neutral">P/L: 0.00</span>
-                    <span id="win-rate">WR: 0%</span>
-                </div>
+        </div>
+    </div>
+
+    <div id="positions-panel" class="hidden">
+        <div id="positions-header">
+            <div class="trading-tabs">
+                <span id="tab-active" class="trading-tab active">Active</span>
+                <span id="tab-history" class="trading-tab">History</span>
             </div>
-            <div id="positions-container">
+            <div id="performance-summary">
+                <span id="total-pnl" class="pnl-neutral">P/L: 0.00</span>
+                <span id="win-rate">WR: 0%</span>
+                <span class="panel-control-close" onclick="togglePanel('positions-panel')" title="Minimize">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </span>
+            </div>
+        </div>
+        <div id="positions-container">
                 <div id="active-content">
                     <table id="positions-table">
                         <thead>
@@ -131,6 +137,7 @@
                                 <th>TP</th>
                                 <th>SL</th>
                                 <th>P&L</th>
+                                <th style="width: 40px;"></th>
                             </tr>
                         </thead>
                         <tbody id="positions-body"></tbody>

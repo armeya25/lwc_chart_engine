@@ -70,6 +70,11 @@
     display: grid;
     gap: 4px;
     background: transparent;
+    transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body.has-bottom-dock #chart-container {
+    height: calc(100vh - 32px - 280px);
 }
 
 /* Layout Presets */
@@ -110,7 +115,7 @@
 #info-panel {
     position: absolute;
     top: 40px;
-    right: 70px;
+    right: 12px;
     display: flex;
     flex-direction: column;
     gap: 12px;

@@ -242,12 +242,12 @@ impl DrawingTool {
         cmds.iter().map(|c| serde_json::to_string(c).unwrap()).collect()
     }
 
-    #[pyo3(signature = (start_time, entry_price, sl_price, tp_price, end_time=None, visible=true, type_str="long".to_string(), quantity=1.0, chart_id="chart-0".to_string()))]
+    #[pyo3(signature = (start_time, entry_price, sl_price, tp_price, end_time=None, visible=true, type_str="long".to_string(), quantity=1.0, text=None, chart_id="chart-0".to_string()))]
     pub fn create_position(&mut self, 
         start_time: i64, entry_price: f64, sl_price: f64, tp_price: f64, 
-        end_time: Option<i64>, visible: bool, type_str: String, quantity: f64, chart_id: String) -> (String, Vec<String>) {
+        end_time: Option<i64>, visible: bool, type_str: String, quantity: f64, text: Option<String>, chart_id: String) -> (String, Vec<String>) {
         
-        let (pos_id, cmds) = self._create_position(start_time, entry_price, sl_price, tp_price, end_time, visible, &type_str, quantity, &chart_id);
+        let (pos_id, cmds) = self._create_position(start_time, entry_price, sl_price, tp_price, end_time, visible, &type_str, quantity, text, &chart_id);
         let cmds_json = cmds.iter().map(|c| serde_json::to_string(c).unwrap()).collect();
         (pos_id, cmds_json)
     }
@@ -282,7 +282,7 @@ impl DrawingTool {
             
             // For now, simpler sync: remove and recreate if anything changed
             // Actually, we can just call create_position which handles removal
-            let (_, cmds) = self.create_position(st, ep, sl, tp, end_time, true, type_str, 1.0, chart_id);
+            let (_, cmds) = self.create_position(st, ep, sl, tp, end_time, true, type_str, 1.0, None, chart_id);
             self.last_position_state = "ACTIVE".to_string();
             return cmds;
         }
@@ -391,7 +391,7 @@ impl DrawingTool {
 
     pub fn _create_position(&mut self, 
         start_time: i64, entry_price: f64, sl_price: f64, tp_price: f64, 
-        end_time: Option<i64>, visible: bool, type_str: &str, quantity: f64, chart_id: &str) -> (String, Vec<ChartCommand>) {
+        end_time: Option<i64>, visible: bool, type_str: &str, quantity: f64, text: Option<String>, chart_id: &str) -> (String, Vec<ChartCommand>) {
         
         let mut commands = Vec::new();
         // Remove existing for this chart if exists
@@ -415,6 +415,7 @@ impl DrawingTool {
             "visible": visible,
             "type": type_str,
             "quantity": quantity,
+            "text": text,
             "chart_id": chart_id,
         });
 

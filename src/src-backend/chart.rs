@@ -574,6 +574,54 @@ impl Chart {
         }
         all_removed
     }
+
+    pub fn trader_update_price(&mut self, price: f64) -> Vec<String> {
+        let mut cmds = self.trader.update_price(price).iter().map(|c| serde_json::to_string(c).unwrap()).collect::<Vec<_>>();
+        
+        let positions = &self.trader.positions;
+        if positions.is_empty() {
+            if self.toolbox.last_position_state != "CLEARED" {
+                cmds.extend(self.toolbox.sync_active_position(false, None, None, None, None, None, None, "chart-0".to_string()));
+            }
+        } else {
+            let p = &positions[0];
+            cmds.extend(self.toolbox.sync_active_position(
+                true, 
+                p.time, 
+                Some(p.entry), 
+                p.sl, 
+                p.tp, 
+                Some(p.side.clone()), 
+                None, 
+                "chart-0".to_string()
+            ));
+        }
+        cmds
+    }
+
+    pub fn trader_execute(&mut self, side: String, qty: f64, price: Option<f64>, tp: Option<f64>, sl: Option<f64>, time: Option<i64>, series_id: Option<String>) -> Vec<String> {
+        let exec_price = price.unwrap_or(self.trader.last_price);
+        let pos_id = Uuid::new_v4().to_string();
+        let mut cmds = self.trader.execute(pos_id, side.clone(), qty, price, tp, sl, time).iter().map(|c| serde_json::to_string(c).unwrap()).collect::<Vec<_>>();
+        
+        if let Some(sid) = series_id {
+            if exec_price > 0.0 {
+                let is_buy = side.to_lowercase() == "buy";
+                let text = format!("{} @ {:.2}", side.to_uppercase(), exec_price);
+                let (pos, shape, color) = if is_buy {
+                    ("belowBar", "arrowUp", "#00e676")
+                } else {
+                    ("aboveBar", "arrowDown", "#ff5252")
+                };
+                
+                let time_val = time.unwrap_or(0); // If time is 0, frontend might handle it as "now" if possible, or we should use last point time
+                
+                let (_, marker_cmd) = self.toolbox._add_marker(&sid, time_val, pos, color, shape, &text, "chart-0");
+                cmds.push(serde_json::to_string(&marker_cmd).unwrap());
+            }
+        }
+        cmds
+    }
 }
 
 #[cfg(feature = "python-bridge")]
@@ -660,5 +708,15 @@ impl Chart {
     #[pyo3(name = "remove_indicator")]
     pub fn py_remove_indicator(&mut self, target_sid: String) -> Vec<String> {
         self.remove_indicator(&target_sid)
+    }
+
+    #[pyo3(name = "trader_update_price")]
+    pub fn py_trader_update_price(&mut self, price: f64) -> Vec<String> {
+        self.trader_update_price(price)
+    }
+
+    #[pyo3(name = "trader_execute", signature = (side, qty, price=None, tp=None, sl=None, time=None, series_id=None))]
+    pub fn py_trader_execute(&mut self, side: String, qty: f64, price: Option<f64>, tp: Option<f64>, sl: Option<f64>, time: Option<i64>, series_id: Option<String>) -> Vec<String> {
+        self.trader_execute(side, qty, price, tp, sl, time, series_id)
     }
 }

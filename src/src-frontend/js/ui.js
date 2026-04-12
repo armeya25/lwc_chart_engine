@@ -554,7 +554,7 @@ function setupWindowControls() {
 
 
 // --- Trading Dashboard Logic ---
-window.positionsUserHidden = true;
+window.positionsUserHidden = false;
 
 window.togglePanel = function(id) {
     if (id === 'legend') {
@@ -568,11 +568,35 @@ window.togglePanel = function(id) {
         
         if (id === 'positions-panel') {
             window.positionsUserHidden = isNowHidden;
-            if (isNowHidden) showNotification("Positions Window Hidden", "info", 2000);
+            if (!isNowHidden) {
+                document.body.classList.add('has-bottom-dock');
+            } else {
+                document.body.classList.remove('has-bottom-dock');
+            }
+            
+            // Trigger chart resize after CSS transition
+            setTimeout(() => {
+                window.dispatchEvent(new Event('resize'));
+            }, 350);
+            
+            if (isNowHidden) showNotification("Positions Window Hidden", "info", 1500);
         }
-
     }
 };
+
+window.closePosition = function(side, qty, entry, id) {
+    if (window.__TAURI__) {
+        const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.invoke;
+        if (invoke) {
+            invoke('emit_to_backend', { 
+                action: 'close_position', 
+                data: { id, side, qty, entry } 
+            })
+            .then(() => showNotification(`Closing ${side.toUpperCase()} ${qty}`, 'info'))
+            .catch(e => showNotification(`Failed to close: ${e}`, 'error'));
+        }
+    }
+}
 
 window.executeTrade = function(side) {
     const qtyInput = document.getElementById('trade-qty');
@@ -609,16 +633,16 @@ export function updatePositionsUI(positions) {
     const body = document.getElementById('positions-body');
     if (!panel || !body) return;
 
-    // If user explicitly manually hid it, keep it hidden.
-    if (window.positionsUserHidden) {
-        panel.classList.add('hidden');
-        return;
+    // Synchronize body class with manual visibility state
+    const isHidden = panel.classList.contains('hidden');
+    if (isHidden) {
+        document.body.classList.remove('has-bottom-dock');
+    } else {
+        document.body.classList.add('has-bottom-dock');
     }
 
-    // Show panel if we have positions
-    if (positions && positions.length > 0) {
-        panel.classList.remove('hidden');
-    }
+    // We no longer force-open the panel during data updates.
+    // The user must explicitly open it from the menu or shortcut.
 
     body.innerHTML = '';
     let totalPnl = 0;
@@ -638,6 +662,9 @@ export function updatePositionsUI(positions) {
                 <td>${p.tp ? p.tp.toFixed(2) : '-'}</td>
                 <td>${p.sl ? p.sl.toFixed(2) : '-'}</td>
                 <td class="${pnlClass}">${p.pnl.toFixed(2)}</td>
+                <td style="text-align: right; width: 40px;">
+                    <button class="close-pos-btn" onclick="window.closePosition('${p.side}', ${p.qty}, ${p.entry}, '${p.id}')">×</button>
+                </td>
             `;
             body.appendChild(tr);
         });
@@ -726,13 +753,11 @@ export function switchTradingTab(tab) {
         histTab.classList.remove('active');
         activeContent.classList.remove('hidden');
         histContent.classList.add('hidden');
-        showNotification("Viewing Active Positions", "info", 1200);
     } else {
         activeTab.classList.remove('active');
         histTab.classList.add('active');
         activeContent.classList.add('hidden');
         histContent.classList.remove('hidden');
-        showNotification("Viewing Trade History", "info", 1200);
     }
 }
 

@@ -21,7 +21,7 @@ faulthandler.enable()
 # State for backend timezone (synced with Rust)
 _BACKEND_TZ = "UTC"
 
-def _set_backend_timezone(timezone_str: str):
+def _set_backend_timezone(timezone_str: str) -> None:
     global _BACKEND_TZ
     _BACKEND_TZ = timezone_str
     chart_engine_lib.py_set_backend_timezone(timezone_str)
@@ -33,7 +33,7 @@ def _ensure_timestamp(val: Any) -> Optional[int]:
 # Cache for indicator schemas from Rust
 _INDICATOR_SCHEMAS = None
 
-def _get_indicator_schemas():
+def _get_indicator_schemas() -> Dict[str, Any]:
     global _INDICATOR_SCHEMAS
     if _INDICATOR_SCHEMAS is None:
         try:
@@ -44,13 +44,13 @@ def _get_indicator_schemas():
 
 # Monkey patch to_arrow to fix the PyO3-Polars bridge error in Polars 1.x
 _orig_df_to_arrow = pl.DataFrame.to_arrow
-def _patched_df_to_arrow(self, *args, **kwargs):
+def _patched_df_to_arrow(self, *args: Any, **kwargs: Any) -> Any:
     kwargs.pop("compat_level", None)
     return _orig_df_to_arrow(self, *args, **kwargs)
 pl.DataFrame.to_arrow = _patched_df_to_arrow
 
 _orig_s_to_arrow = pl.Series.to_arrow
-def _patched_s_to_arrow(self, *args, **kwargs):
+def _patched_s_to_arrow(self, *args: Any, **kwargs: Any) -> Any:
     kwargs.pop("compat_level", None)
     return _orig_s_to_arrow(self, *args, **kwargs)
 pl.Series.to_arrow = _patched_s_to_arrow
@@ -88,7 +88,7 @@ def _process_polars_data(df: pl.DataFrame) -> pl.DataFrame:
 
 class DateTimeEncoder(json.JSONEncoder):
     """Bridge for DateTimeEncoder."""
-    def default(self, obj):
+    def default(self, obj: Any) -> Any:
         ts = _ensure_timestamp(obj)
         if ts is not None: return ts
         # Fallback to default JSON encoder for other types
@@ -104,18 +104,21 @@ _TAURI_PROCESS = None
 _READY_EVENT = False 
 
 class ChartAPI:
-    def __init__(self, ready_event):
+    def __init__(self, ready_event: threading.Event):
         self.ready_event = ready_event
-    def mark_ready(self):
+    def mark_ready(self) -> Dict[str, str]:
         self.ready_event.set()
         return {"status": "ok"}
-    def log_message(self, msg):
+    def log_message(self, msg: str) -> Dict[str, str]:
         return {"status": "ok"}
 
 class SubChart:
-    def __init__(self, chart: 'Chart', chart_id: str): self.chart, self.chart_id = chart, chart_id
+    def __init__(self, chart: 'Chart', chart_id: str): 
+        self.chart, self.chart_id = chart, chart_id
+
     def create_line_series(self, name: str = "Line", indicator: str = None, indicator_params: dict = None, indicator_metadata: dict = None) -> 'Series': 
         return self.chart.create_line_series(name, self.chart_id, indicator=indicator, indicator_params=indicator_params, indicator_metadata=indicator_metadata)
+
     def create_candlestick_series(self, name: str = "Price", indicator: str = None, indicator_params: dict = None, indicator_metadata: dict = None) -> 'Series': 
         return self.chart.create_candlestick_series(name, self.chart_id, indicator=indicator, indicator_params=indicator_params, indicator_metadata=indicator_metadata)
 
@@ -124,7 +127,7 @@ class SubChart:
 class PriceLine:
     def __init__(self, rust_line: Any, chart: 'Chart'):
         self._rust_line, self.chart, self.line_id = rust_line, chart, rust_line.line_id
-    def update(self, price: float):
+    def update(self, price: float) -> None:
         cmd = self._rust_line.update(price)
         if cmd: self.chart._send_command(json.loads(cmd))
 
@@ -134,7 +137,7 @@ class Series(IndicatorMixin):
         self._auto_volume_enabled = True
         self._last_df = None
 
-    def set_auto_volume(self, enabled: bool):
+    def set_auto_volume(self, enabled: bool) -> None:
         """Enable or disable automatic creation of a volume histogram pane."""
         self._auto_volume_enabled = bool(enabled)
         if self.chart and self.chart._rust_chart:
@@ -145,6 +148,11 @@ class Series(IndicatorMixin):
             df = _ensure_polars(df)
             self._last_df = df # Persist for indicator calculations
             
+            # Auto-update trader price if this is the main series
+            if self.series_id == self.chart.main_series_id and "close" in df.columns:
+                last_price = df["close"].tail(1)[0]
+                self.chart.trader_update_price(last_price)
+                
             # Use Chart level set_series_data to ensure latest state (including recently added indicators) is used.
             commands = self.chart._rust_chart.set_series_data(self.series_id, df)
             for cmd_str in commands:
@@ -156,6 +164,12 @@ class Series(IndicatorMixin):
     def update(self, item: Union[pl.DataFrame, Any]) -> List[str]:
         if self.chart and self.chart._rust_chart:
             item = _ensure_polars(item)
+            
+            # Auto-update trader price if this is the main series
+            if self.series_id == self.chart.main_series_id and "close" in item.columns:
+                last_price = item["close"].tail(1)[0]
+                self.chart.trader_update_price(last_price)
+            
             # Use Chart level update_series_data to ensure state sync.
             commands = self.chart._rust_chart.update_series_data(self.series_id, item)
             for cmd_str in commands:
@@ -164,10 +178,10 @@ class Series(IndicatorMixin):
                         self.chart._send_command(json.loads(line))
             return commands
         return []
-    def apply_options(self, options: Dict[str, Any]):
+    def apply_options(self, options: Dict[str, Any]) -> None:
         if self._rust_series: self.chart._send_command(json.loads(self._rust_series.apply_options(json.dumps(options))))
 
-    def _add_indicator(self, ind_type: str, id: str = None, name: str = None, params: dict = None, extra_ids: dict = None, metadata: dict = None) -> str:
+    def _add_indicator(self, ind_type: str, id: Optional[str] = None, name: Optional[str] = None, params: Optional[Dict[str, Any]] = None, extra_ids: Optional[Dict[str, str]] = None, metadata: Optional[Dict[str, Any]] = None) -> str:
         """Internal helper to register an indicator in the Rust backend."""
         params = params or {}
         extra_ids = extra_ids or {}
@@ -229,12 +243,11 @@ class Series(IndicatorMixin):
             
         return main_s
 
-    def add_marker(self, **kwargs):
+    def add_marker(self, time: Any = None, position: str = "aboveBar", color: str = "#2196F3", shape: str = "arrowDown", text: str = "", chart_id: str = "chart-0") -> str:
         """Convenience method for adding a marker to this specific series."""
-        time_val = kwargs.pop('time', None)
-        return self.chart.add_marker(self.series_id, time_val, **kwargs)
+        return self.chart.add_marker(self.series_id, time, position=position, color=color, shape=shape, text=text, chart_id=chart_id)
 
-    def add_band(self, df, color="rgba(31, 150, 243, 0.2)"):
+    def add_band(self, df: Union[pl.DataFrame, Any], color: str = "rgba(31, 150, 243, 0.2)") -> None:
         """
         Adds a Band (Cloud) indicator to this series using the Band Plugin.
         Requires a DataFrame with 'time', 'top', and 'bottom' columns.
@@ -306,9 +319,10 @@ class Chart:
             cls._initialized = False
         return cls._instance
 
-    def __init__(self, title: str = "Chart Window", width: int = 1200, height: int = 800, main_series_id: str = "main"):
+    def __init__(self, title: str = "Chart Window", width: int = 1200, height: int = 800, main_series_id: str = "main") -> None:
         if getattr(self, '_initialized', False): return
         self.series, self._rust_chart = {}, chart_engine_lib.Chart()
+        self.main_series_id = main_series_id
         self.on_trade = None
         
         # Merge DrawingTool logic directly into Chart
@@ -341,7 +355,7 @@ class Chart:
         self._initialized = True
         atexit.register(self.exit)
 
-    def __listen_to_ui(self):
+    def __listen_to_ui(self) -> None:
         global _TAURI_PROCESS
         while _TAURI_PROCESS and _TAURI_PROCESS.poll() is None:
             line = _TAURI_PROCESS.stdout.readline()
@@ -404,6 +418,10 @@ class Chart:
                 if msg.get("action") == "trade" and self.on_trade:
                     self.on_trade(msg.get("data"))
                 
+                if msg.get("action") == "close_position":
+                    cmds = self._rust_trader.handle_close_callback(json.dumps(msg.get("data")))
+                    for c in cmds: self._send_command(json.loads(c))
+                
                 if msg.get("action") == "screenshot":
                     data = msg.get("data", {})
                     b64_data = data.get("base64", "")
@@ -426,7 +444,7 @@ class Chart:
             except Exception as e:
                 logger.error(f"Error in UI listener thread: {e}")
 
-    def __consume_stderr(self):
+    def __consume_stderr(self) -> None:
         global _TAURI_PROCESS
         while _TAURI_PROCESS and _TAURI_PROCESS.poll() is None:
             line = _TAURI_PROCESS.stderr.readline()
@@ -462,7 +480,7 @@ class Chart:
         num = 3 if "1p2" in l_str else 4 if "1p3" in l_str else 2 if "double" in l_str else 1
         return [SubChart(self, f"chart-{i}") for i in range(num)]
 
-    def create_line_series(self, name: str = "Line", chart_id: str = "chart-0", indicator: str = None, indicator_params: dict = None, indicator_metadata: dict = None) -> Series:
+    def create_line_series(self, name: str = "Line", chart_id: str = "chart-0", indicator: Optional[str] = None, indicator_params: Optional[Dict[str, Any]] = None, indicator_metadata: Optional[Dict[str, Any]] = None) -> Series:
         sid, cmd_json = self._rust_chart.create_line_series(name, chart_id)
         cmd = json.loads(cmd_json)
         if indicator:
@@ -472,7 +490,7 @@ class Chart:
         self._send_command(cmd)
         return Series(self, sid, name, chart_id=chart_id, rust_series=self._rust_chart.series.get(sid))
 
-    def create_candlestick_series(self, name: str = "Price", chart_id: str = "chart-0", indicator: str = None, indicator_params: dict = None, indicator_metadata: dict = None) -> Series:
+    def create_candlestick_series(self, name: str = "Price", chart_id: str = "chart-0", indicator: Optional[str] = None, indicator_params: Optional[Dict[str, Any]] = None, indicator_metadata: Optional[Dict[str, Any]] = None) -> Series:
         sid, cmd_json = self._rust_chart.create_candlestick_series(name, chart_id)
         cmd = json.loads(cmd_json)
         if indicator:
@@ -482,14 +500,14 @@ class Chart:
         self._send_command(cmd)
         return Series(self, sid, name, chart_id=chart_id, rust_series=self._rust_chart.series.get(sid))
 
-    def remove_series(self, series_id: str, chart_id: str = "chart-0"):
+    def remove_series(self, series_id: str, chart_id: str = "chart-0") -> None:
         self._send_command({"action": "remove_series", "chartId": chart_id, "seriesId": series_id})
         if self._rust_chart:
             self._rust_chart.remove_series(series_id)
         if series_id in self.series:
             del self.series[series_id]
 
-    def remove_indicator(self, indicator_id: str):
+    def remove_indicator(self, indicator_id: str) -> None:
         """Remove all series associated with an indicator group from Python and Rust state."""
         if not self._rust_chart:
             return
@@ -499,130 +517,176 @@ class Chart:
             if sid in self.series:
                 del self.series[sid]
 
-    def clear_all_series(self, chart_id: str = "chart-0"):
+    def clear_all_series(self, chart_id: str = "chart-0") -> None:
         self._send_command({"action": "clear_all_series", "chartId": chart_id})
 
-    def set_watermark(self, text: str, chart_id: str = "chart-0"): 
+    def set_watermark(self, text: str, chart_id: str = "chart-0") -> None: 
         self._send_command({"action": "set_watermark", "chartId": chart_id, "data": {"text": text}})
     
-    def set_timezone(self, tz: str): 
+    def set_timezone(self, tz: str) -> None: 
         _set_backend_timezone(tz)
         self._send_command({"action": "set_timezone", "data": {"timezone": tz}})
     
-    def set_tooltip(self, v: bool): 
+    def set_tooltip(self, v: bool) -> None: 
         """Show or hide the floating tooltip on crosshair move (via Rust)"""
         cmd = self._rust_chart.set_tooltip(bool(v))
         self._send_command(json.loads(cmd))
     
-    def enable_tooltip(self): self.set_tooltip(True)
-    def disable_tooltip(self): self.set_tooltip(False)
+    def enable_tooltip(self) -> None: self.set_tooltip(True)
+    def disable_tooltip(self) -> None: self.set_tooltip(False)
     
-    def set_trend_info_visibility(self, v: bool): 
+    def set_trend_info_visibility(self, v: bool) -> None: 
         self._send_command({"action": "set_trend_info_visibility", "data": {"visible": v}})
 
-    def set_legend_visibility(self, v: bool):
+    def set_legend_visibility(self, v: bool) -> None:
         self._send_command({"action": "set_legend_visibility", "data": {"visible": v}})
 
-    def update_trend_info(self, **kwargs: Any):
-        self._send_command({"action": "update_trend", "data": kwargs})
+    def update_trend_info(self, data: Dict[str, Any]) -> None:
+        self._send_command({"action": "update_trend", "data": data})
 
-    def set_crosshair_mode(self, mode: int = 0):
+    def set_crosshair_mode(self, mode: int = 0) -> None:
         # 0 = Normal, 1 = Magnet
         self._send_command({"action": "set_crosshair_mode", "data": {"mode": mode}})
 
-    def set_sync(self, enabled: bool = False):
+    def set_sync(self, enabled: bool = False) -> None:
         self._send_command({"action": "set_sync", "data": {"enabled": enabled}})
     
-    def take_screenshot(self, filename: str = None, chart_id: str = "chart-0"):
+    def take_screenshot(self, filename: Optional[str] = None, chart_id: str = "chart-0") -> None:
         self._send_command({"action": "take_screenshot", "chartId": chart_id, "filename": filename})
     
     ################################################
     # --- Drawing & Markers (from DrawingTool) --- #
     ################################################
-    def sync_active_position(self, is_opened: bool, **kwargs: Any):
-        for c in self._rust_toolbox.sync_active_position(is_opened, **kwargs):
+    def sync_active_position(self, 
+        is_opened: bool, 
+        start_time: Optional[int] = None, 
+        entry_price: Optional[float] = None, 
+        sl_price: Optional[float] = None, 
+        tp_price: Optional[float] = None, 
+        pos_type: Optional[str] = None, 
+        end_time: Optional[int] = None, 
+        chart_id: str = "chart-0"
+    ) -> None:
+        for c in self._rust_toolbox.sync_active_position(is_opened, start_time, entry_price, sl_price, tp_price, pos_type, end_time, chart_id):
             self._send_command(json.loads(c))
 
-    def add_marker(self, series_id: str, time: Any, **kwargs: Any) -> str:
-        mid, cmd = self._rust_toolbox.add_marker(series_id, _ensure_timestamp(time), kwargs.get('position', "aboveBar"), kwargs.get('color', "#2196F3"), kwargs.get('shape', "arrowDown"), kwargs.get('text', ""), kwargs.get('chart_id', "chart-0"))
+    def add_marker(self, series_id: str, time: Any, position: str = "aboveBar", color: str = "#2196F3", shape: str = "arrowDown", text: str = "", chart_id: str = "chart-0") -> str:
+        mid, cmd = self._rust_toolbox.add_marker(series_id, _ensure_timestamp(time), position, color, shape, text, chart_id)
         self._send_command(json.loads(cmd))
         return mid
 
-    def create_box(self, start_time: Any, start_price: float, end_time: Any, end_price: float, **kwargs: Any) -> str:
+    def create_box(self, start_time: Any, start_price: float, end_time: Any, end_price: float, color: str = "rgba(33, 150, 243, 0.2)", border_color: str = "#2196F3", text: str = "", category: Optional[str] = None, chart_id: str = "chart-0") -> str:
         st = _ensure_timestamp(start_time)
         et = _ensure_timestamp(end_time)
-        bid, cmds = self._rust_toolbox.create_box(st, start_price, et, end_price, kwargs.get('color', "rgba(33, 150, 243, 0.2)"), kwargs.get('border_color', "#2196F3"), kwargs.get('text', ""), kwargs.get('category'), kwargs.get('chart_id', "chart-0"))
+        bid, cmds = self._rust_toolbox.create_box(st, start_price, et, end_price, color, border_color, text, category, chart_id)
         for c in cmds: self._send_command(json.loads(c))
         return bid
 
-    def create_horizontal_line(self, series_id: str, price: float, **kwargs: Any) -> PriceLine:
-        lid, cmd = self._rust_toolbox.create_horizontal_line(series_id, price, kwargs.get('color', "#F44336"), kwargs.get('chart_id', "chart-0"))
+    def create_horizontal_line(self, series_id: str, price: float, color: str = "#F44336", chart_id: str = "chart-0") -> PriceLine:
+        lid, cmd = self._rust_toolbox.create_horizontal_line(series_id, price, color, chart_id)
         if cmd: self._send_command(json.loads(cmd))
         return PriceLine(self._rust_toolbox.lines.get(lid), self)
 
-    def _create_line_tool(self, tool_type: str, start_time: Any, start_price: float, end_time: Any, end_price: float, **kwargs: Any) -> str:
+    def _create_line_tool(self, tool_type: str, start_time: Any, start_price: float, end_time: Any, end_price: float, color: str = "#2196F3", width: int = 1, style: int = 0, visible: bool = True, text: str = "", extended: bool = False, chart_id: str = "chart-0") -> str:
         st = _ensure_timestamp(start_time)
         et = _ensure_timestamp(end_time)
-        tid, cmd = self._rust_toolbox.create_line_tool(tool_type, st, start_price, et, end_price, kwargs.get('color', "#2196F3"), kwargs.get('width', 1), kwargs.get('style', 0), kwargs.get('visible', True), kwargs.get('text', ""), kwargs.get('extended', False), kwargs.get('chart_id', "chart-0"))
+        tid, cmd = self._rust_toolbox.create_line_tool(tool_type, st, start_price, et, end_price, color, width, style, visible, text, extended, chart_id)
         self._send_command(json.loads(cmd))
         return tid
 
-    def create_trendline(self, st, sp, et, ep, **k): return self._create_line_tool("trendline", st, sp, et, ep, **k)
-    def create_ray(self, st, sp, et, ep, **k): k['extended'] = True; return self._create_line_tool("ray", st, sp, et, ep, **k)
-    def create_fib_retracement(self, st, sp, et, ep, **k): return self._create_line_tool("fib", st, sp, et, ep, **k)
-    def remove_line_tool(self, tid): self._send_command(json.loads(self._rust_toolbox.remove_line_tool(tid)))
-    def clear_line_tools(self): self._send_command(json.loads(self._rust_toolbox.clear_line_tools()))
-    def remove_box(self, bid): self._send_command(json.loads(self._rust_toolbox.remove_box(bid)))
-    def create_long_position(self, st: Any, ep: float, sl: float, tp: float, **k: Any) -> str:
-        pid, cmds = self._rust_toolbox.create_position(_ensure_timestamp(st), ep, sl, tp, _ensure_timestamp(k.get('end_time')), k.get('visible', True), "long", k.get('quantity', 1.0), k.get('chart_id', "chart-0"))
+    def create_trendline(self, start_time: Any, start_price: float, end_time: Any, end_price: float, color: str = "#2196F3", width: int = 1, style: int = 0, visible: bool = True, text: str = "", extended: bool = False, chart_id: str = "chart-0") -> str: 
+        return self._create_line_tool("trendline", start_time, start_price, end_time, end_price, color=color, width=width, style=style, visible=visible, text=text, extended=extended, chart_id=chart_id)
+
+    def create_ray(self, start_time: Any, start_price: float, end_time: Any, end_price: float, color: str = "#2196F3", width: int = 1, style: int = 0, visible: bool = True, text: str = "", chart_id: str = "chart-0") -> str: 
+        return self._create_line_tool("ray", start_time, start_price, end_time, end_price, color=color, width=width, style=style, visible=visible, text=text, extended=True, chart_id=chart_id)
+
+    def create_fib_retracement(self, start_time: Any, start_price: float, end_time: Any, end_price: float, color: str = "#2196F3", width: int = 1, style: int = 0, visible: bool = True, text: str = "", chart_id: str = "chart-0") -> str: 
+        return self._create_line_tool("fib", start_time, start_price, end_time, end_price, color=color, width=width, style=style, visible=visible, text=text, extended=False, chart_id=chart_id)
+
+    def remove_line_tool(self, tid: str) -> None: 
+        self._send_command(json.loads(self._rust_toolbox.remove_line_tool(tid)))
+
+    def clear_line_tools(self) -> None: 
+        self._send_command(json.loads(self._rust_toolbox.clear_line_tools()))
+
+    def remove_box(self, bid: str) -> None: 
+        self._send_command(json.loads(self._rust_toolbox.remove_box(bid)))
+    def create_long_position(self, start_time: Any, entry_price: float, sl_price: float, tp_price: float, end_time: Any = None, visible: bool = True, quantity: float = 1.0, text: Optional[str] = None, chart_id: str = "chart-0") -> str:
+        st = _ensure_timestamp(start_time)
+        et = _ensure_timestamp(end_time)
+        pid, cmds = self._rust_toolbox.create_position(st, entry_price, sl_price, tp_price, et, visible, "long", quantity, text, chart_id)
+        
+        # Track in PaperTrader
+        from chart_engine import Position
+        pos = Position(id=pid, side="buy", qty=quantity, entry=entry_price, price=entry_price, tp=tp_price, sl=sl_price, time=st)
+        self._rust_trader.add_position(pos)
+        
         for c in cmds: self._send_command(json.loads(c))
         return pid
 
-    def create_short_position(self, st: Any, ep: float, sl: float, tp: float, **k: Any) -> str:
-        pid, cmds = self._rust_toolbox.create_position(_ensure_timestamp(st), ep, sl, tp, _ensure_timestamp(k.get('end_time')), k.get('visible', True), "short", k.get('quantity', 1.0), k.get('chart_id', "chart-0"))
+    def create_short_position(self, start_time: Any, entry_price: float, sl_price: float, tp_price: float, end_time: Any = None, visible: bool = True, quantity: float = 1.0, text: Optional[str] = None, chart_id: str = "chart-0") -> str:
+        st = _ensure_timestamp(start_time)
+        et = _ensure_timestamp(end_time)
+        pid, cmds = self._rust_toolbox.create_position(st, entry_price, sl_price, tp_price, et, visible, "short", quantity, text, chart_id)
+        
+        # Track in PaperTrader
+        from chart_engine import Position
+        pos = Position(id=pid, side="sell", qty=quantity, entry=entry_price, price=entry_price, tp=tp_price, sl=sl_price, time=st)
+        self._rust_trader.add_position(pos)
+        
         for c in cmds: self._send_command(json.loads(c))
         return pid
 
-    def remove_position(self, pid: str): self._send_command(json.loads(self._rust_toolbox.remove_position(pid)))
-    def clear_positions(self, cid: str = None):
-        for c in self._rust_toolbox.clear_positions(cid): self._send_command(json.loads(c))
+    def remove_position(self, pid: str) -> None: 
+        self._send_command(json.loads(self._rust_toolbox.remove_position(pid)))
+
+    def clear_positions(self, cid: str = None) -> None:
+        for c in self._rust_toolbox.clear_positions(cid): 
+            self._send_command(json.loads(c))
     
     ########################################
     # --- Paper Trading Logic (Merged) --- #
     ########################################
-    def trader_handle_callback(self, data):
+    def trader_handle_callback(self, data: Dict[str, Any]) -> None:
         """Internal callback for trade events from the UI"""
         cmds = self._rust_trader.handle_callback(json.dumps(data))
         for c in cmds: self._send_command(json.loads(c))
 
-    def trader_update_price(self, price: float):
-        """Update market price and check TP/SL for all positions in Rust"""
-        cmds = self._rust_trader.update_price(price)
-        for c in cmds: self._send_command(json.loads(c))
+    def trader_update_price(self, price: float) -> None:
+        """Update market price and synchronize positions/visual tools via Rust coordinator"""
+        if price is None: return
+        cmds = self._rust_chart.trader_update_price(price)
+        for c in cmds:
+            try:
+                self._send_command(json.loads(c))
+            except:
+                pass
 
-    def trader_execute(self, side: str, qty: float, price: float = None, tp: float = None, sl: float = None, series: Series = None, time: Any = None):
-        """Programmatically execute a trade in the Rust backend"""
-        st = _ensure_timestamp(time) if time else None
-        cmds = self._rust_trader.execute(side, qty, price, tp, sl, st)
-        for c in cmds: self._send_command(json.loads(c))
+    def trader_execute(self, side: str, qty: float, price: Optional[float] = None, tp: Optional[float] = None, sl: Optional[float] = None, series: Optional[Series] = None, time: Any = None) -> None:
+        """Programmatically execute a trade in the Rust backend with automatic marker placement"""
+        exec_price = price
+        if exec_price is None and self.last_price == 0:
+            # Fallback: try to grab price from the main series if available
+            main_s = self.series.get(self.main_series_id)
+            if main_s and main_s._last_df is not None and not main_s._last_df.is_empty():
+                exec_price = float(main_s._last_df["close"].tail(1)[0])
         
-        if series:
-            exec_price = price or self.last_price
-            if exec_price:
-                is_buy = side.lower() == 'buy'
-                series.add_marker(
-                    time=time,
-                    position="belowBar" if is_buy else "aboveBar",
-                    shape="arrowUp" if is_buy else "arrowDown",
-                    color="#00e676" if is_buy else "#ff5252",
-                    text=f"{side.upper()} @ {exec_price:.2f}"
-                )
+        st = _ensure_timestamp(time)
+        sid = series.series_id if series else None
+        
+        cmds = self._rust_chart.trader_execute(side, qty, exec_price, tp, sl, st, sid)
+        for c in cmds: self._send_command(json.loads(c))
 
-    def show_notification(self, message: str, type: str = "info"):
+    def trader_close_position(self, side: str, qty: float, entry: float) -> None:
+        """Manually close a position in the Rust backend"""
+        cmds = self._rust_trader.close_position(side, qty, entry)
+        for c in cmds: self._send_command(json.loads(c))
+
+    def show_notification(self, message: str, type: str = "info") -> None:
         """Show a toast notification in the UI"""
         self._send_command({"action": "show_notification", "data": {"message": message, "type": type}})
 
-    def show(self, block: bool = True):
+    def show(self, block: bool = True) -> None:
         """Keep the window open and block the Python script until it is closed."""
         global _TAURI_PROCESS
         if not _TAURI_PROCESS: return
@@ -634,7 +698,7 @@ class Chart:
             except KeyboardInterrupt:
                 self.exit()
     
-    def _send_command(self, cmd):
+    def _send_command(self, cmd: Dict[str, Any]) -> None:
         global _TAURI_PROCESS
         if _TAURI_PROCESS and _TAURI_PROCESS.poll() is None:
             cmd_json = json.dumps(cmd, cls=DateTimeEncoder)
@@ -643,7 +707,7 @@ class Chart:
                 _TAURI_PROCESS.stdin.flush()
             except: pass
 
-    def exit(self): 
+    def exit(self) -> None: 
         global _TAURI_PROCESS
         if _TAURI_PROCESS:
             _TAURI_PROCESS.terminate()

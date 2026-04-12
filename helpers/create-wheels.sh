@@ -48,6 +48,8 @@ rm -f src/chart_engine/chart_engine_lib*.so
 rm -rf src/chart_engine/__pycache__
 
 # 1. Install UI dependencies
+
+# 1. Install UI dependencies
 # 1. Install UI dependencies
 echo "📦 Synchronizing UI dependencies..."
 (cd src && npm install)
@@ -108,7 +110,16 @@ if [ -f "$WHEEL_FILE" ]; then
     
     echo "📂 Restoring executable permissions before compression..."
     find "$TMP_DIR" -type f -name "*.so" -exec chmod +x {} +
-    find "$TMP_DIR" -type f -name "chart_engine" -exec chmod +x {} +
+    
+    # Ensure binary is in the wheel (Maturin sometimes skips it during compatibility bundling)
+    BPATH="src/src-tauri/target/release/chart_engine"
+    if [ -f "$BPATH" ]; then
+        echo "📂 Injecting standalone binary into wheel..."
+        cp "$BPATH" "$TMP_DIR/chart_engine/chart_engine"
+        chmod +x "$TMP_DIR/chart_engine/chart_engine"
+    else
+        echo "⚠️ Warning: Standalone binary not found at $BPATH. Skipping injection."
+    fi
 
     echo "⚡ High-compressing internal binaries (UPX)..."
     # Skip UPX for .so files to avoid corruption and preserve symbols for now

@@ -75,22 +75,26 @@
 /* --- Positions & Portfolio Tracking --- */
 #positions-panel {
     position: fixed;
-    bottom: 24px;
-    left: 24px;
-    width: 600px;
-    background: var(--glass-bg);
-    backdrop-filter: var(--glass-blur);
-    -webkit-backdrop-filter: var(--glass-blur);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--radius-lg);
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: 280px;
+    background: rgba(15, 15, 20, 0.95);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
     z-index: 2000;
-    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
-    overflow: hidden;
-    min-width: 450px;
-    max-height: 50vh;
     display: flex;
     flex-direction: column;
-    transition: all var(--transition-smooth);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: translateY(0);
+}
+
+#positions-panel.hidden {
+    display: flex !important;
+    transform: translateY(100%);
+    pointer-events: none;
 }
 
 #positions-header {
@@ -172,9 +176,27 @@
 #total-pnl.pnl-down { color: var(--error-color); background: rgba(239, 83, 80, 0.05); border-color: rgba(239, 83, 80, 0.1); }
 
 #positions-container {
-    padding: 0;
+    flex: 1;
     overflow-y: auto;
-    max-height: 240px;
+    padding: 0;
+}
+
+.panel-control-close {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-secondary);
+    border-radius: 4px;
+    margin-left: 10px;
+    transition: background 0.2s, color 0.2s;
+}
+
+.panel-control-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
 }
 
 #positions-table, #history-table {
@@ -221,4 +243,27 @@
     opacity: 1;
     color: var(--error-color);
     transform: scale(1.1);
+}
+
+.close-pos-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-secondary);
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+    padding: 0;
+}
+
+.close-pos-btn:hover {
+    background: rgba(239, 83, 80, 0.2);
+    border-color: rgba(239, 83, 80, 0.4);
+    color: #ef5350;
+    transform: scale(1.05);
 }
