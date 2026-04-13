@@ -6,7 +6,7 @@ set -e
 # Change to the project root directory
 cd "$(dirname "$0")/.."
 
-VERSION="0.9.5"
+VERSION="0.9.7"
 PACKAGE_NAME="chart_engine"
 SOURCE_DIR="src/chart_engine"
 

@@ -1,4 +1,24 @@
 
+## [0.9.7] - 2026-04-13
+
+### 🚀 Core Improvements / Features
+- **Summary**: Comprehensive Technical Indicator Expansion.
+- **Details**: Completed the integration of all 20 technical indicators defined in the registry. Added support for **WMA, HMA, Keltner Channels, Donchian Channels, MFI, ROC, OBV, and ADL**.
+- **Summary**: Robust Indicator Calculations.
+- **Details**: Hardened range-based indicators (ADL, Stochastic, Williams %R, CCI) against division-by-zero errors in the Rust backend, ensuring stable rendering even during flat price ranges.
+
+### 🎯 UI & API Enhancements
+- **Summary**: Centered Trade Execution Panel.
+- **Details**: Repositioned the execution panel to be centered horizontally at the top of the chart area for improved accessibility.
+- **Summary**: Clean Legend UX.
+- **Details**: Hidden vertical scrollbars in the indicator legend to maintain a clean aesthetic while preserving scroll functionality for dense indicator lists.
+
+### ⚙ Internal Refactoring
+- **Summary**: Modular Indicator Dispatcher.
+- **Details**: Fully refactored the monolithic `add_indicator_v2` method into specialized, maintainable helpers for parsing, naming, and color resolution.
+- **Summary**: Circular Dependency Fix.
+- **Details**: Resolved a critical circular import between `chart.py` and `indicators.py` in the Python package using late-binding imports.
+
 ## [0.9.6] - 2026-04-12
 
 ### 🚀 Core Improvements / Features

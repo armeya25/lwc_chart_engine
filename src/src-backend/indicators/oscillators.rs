@@ -58,7 +58,10 @@ pub fn calculate_batch(config: &IndicatorConfig, df_lazy: LazyFrame, period: usi
                     col("high").rolling_max(RollingOptionsFixedWindow { window_size: period, min_periods: period, ..Default::default() }).alias("highest_high"),
                 ])
                 .with_column(
-                    (lit(100.0) * (col("close") - col("lowest_low")) / (col("highest_high") - col("lowest_low"))).alias("raw_k")
+                    when(col("highest_high").eq(col("lowest_low")))
+                    .then(lit(50.0))
+                    .otherwise(lit(100.0) * (col("close") - col("lowest_low")) / (col("highest_high") - col("lowest_low")))
+                    .alias("raw_k")
                 )
                 .with_column(
                     col("raw_k").rolling_mean(RollingOptionsFixedWindow { window_size: smooth_k, min_periods: smooth_k, ..Default::default() }).alias("value") // %K
@@ -81,7 +84,12 @@ pub fn calculate_batch(config: &IndicatorConfig, df_lazy: LazyFrame, period: usi
                     col("tp").rolling_mean(RollingOptionsFixedWindow { window_size: period, min_periods: period, ..Default::default() }).alias("sma_tp"),
                     col("tp").rolling_std(RollingOptionsFixedWindow { window_size: period, min_periods: period, ..Default::default() }).alias("std_tp"),
                 ])
-                .with_column(((col("tp") - col("sma_tp")) / (lit(0.015) * col("std_tp"))).alias("value"))
+                .with_column(
+                    when(col("std_tp").eq(0.0))
+                    .then(lit(0.0))
+                    .otherwise((col("tp") - col("sma_tp")) / (lit(0.015) * col("std_tp")))
+                    .alias("value")
+                )
                 .collect().map_err(|e: PolarsError| e.to_string())?;
             df_to_set_data_cmd(&res_df, &config.target_series_id, &config.chart_id, Some(&config.target_series_id), ind_type_str)
         },
@@ -91,7 +99,12 @@ pub fn calculate_batch(config: &IndicatorConfig, df_lazy: LazyFrame, period: usi
                     col("high").rolling_max(RollingOptionsFixedWindow { window_size: period, min_periods: period, ..Default::default() }).alias("hh"),
                     col("low").rolling_min(RollingOptionsFixedWindow { window_size: period, min_periods: period, ..Default::default() }).alias("ll"),
                 ])
-                .with_column((lit(-100.0) * (col("hh") - col("close")) / (col("hh") - col("ll"))).alias("value"))
+                .with_column(
+                    when(col("hh").eq(col("ll")))
+                    .then(lit(-50.0))
+                    .otherwise(lit(-100.0) * (col("hh") - col("close")) / (col("hh") - col("ll")))
+                    .alias("value")
+                )
                 .collect().map_err(|e: PolarsError| e.to_string())?;
             df_to_set_data_cmd(&res_df, &config.target_series_id, &config.chart_id, Some(&config.target_series_id), ind_type_str)
         },

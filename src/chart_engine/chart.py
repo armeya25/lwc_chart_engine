@@ -6,7 +6,6 @@ try:
     from . import chart_engine_lib
 except (ImportError, ValueError):
     import chart_engine_lib
-import time
 import threading
 import logging
 import atexit
@@ -181,39 +180,6 @@ class Series(IndicatorMixin):
     def apply_options(self, options: Dict[str, Any]) -> None:
         if self._rust_series: self.chart._send_command(json.loads(self._rust_series.apply_options(json.dumps(options))))
 
-    def _add_indicator(self, ind_type: str, id: Optional[str] = None, name: Optional[str] = None, params: Optional[Dict[str, Any]] = None, extra_ids: Optional[Dict[str, str]] = None, metadata: Optional[Dict[str, Any]] = None) -> str:
-        """Internal helper to register an indicator in the Rust backend."""
-        params = params or {}
-        extra_ids = extra_ids or {}
-        metadata = metadata or {}
-        if id is None:
-            id = f"{self.series_id}_{ind_type}_{params.get('period', '')}"
-        
-        # Store metadata for frontend settings
-        full_metadata = {
-            "ind_type": ind_type,
-            "owner_id": self.series_id,
-            "params": params,
-            "schema": metadata
-        }
-        
-        # Notify frontend about indicator settings
-        # Use name or id as the group identifier if available
-        indicator_group = name if name else id
-        self.chart._send_command({
-            "action": "register_indicator_metadata",
-            "indicator": indicator_group,
-            "data": full_metadata
-        })
-        
-        # 1. Register in Rust Series
-        self._rust_series.add_indicator(id, ind_type, json.dumps(params), json.dumps(extra_ids))
-        
-        # 2. Re-trigger data sync if needed
-        if self._last_df is not None:
-            self.set_data(self._last_df)
-            
-        return id
 
     def add_indicator_v2(self, ind_type: str, params: dict = None, metadata: dict = None) -> 'Series':
         """Unified optimized call to add an indicator with minimal context switching."""
@@ -403,16 +369,17 @@ class Chart:
 
                 if msg.get("action") == "update_indicator":
                     data = msg.get("data", {})
-                    ind_name = data.get("indicator")
+                    ind_name = data.get("indicator") # This is the group ID (mainSid)
                     ind_type = data.get("ind_type")
                     owner_id = data.get("owner_id")
                     params = data.get("params")
                     
                     owner_series = self.series.get(owner_id)
                     if owner_series:
-                        # Re-calculate indicator with new parameters
-                        # Using ind_name as id ensures the Rust backend calculator is overwritten
-                        owner_series._add_indicator(ind_type, id=ind_name, name=ind_name, params=params)
+                        # Standardized update flow: remove old and add new with v2 logic.
+                        # This ensures multi-series indicators (MACD, BB) are correctly handled.
+                        self.remove_indicator(ind_name)
+                        owner_series.add_indicator_v2(ind_type, params=params)
                     continue
 
                 if msg.get("action") == "remove_indicator":
@@ -561,6 +528,19 @@ class Chart:
     def set_crosshair_mode(self, mode: int = 0) -> None:
         # 0 = Normal, 1 = Magnet
         self._send_command({"action": "set_crosshair_mode", "data": {"mode": mode}})
+
+    def set_price_margins(self, top: float = 0.05, bottom: float = 0.05, chart_id: str = "chart-0") -> None:
+        """
+        Adjust the gap between the candles and the top/bottom boundaries of the chart.
+        Values are expressed as a percentage of the chart height (e.g., 0.05 = 5%).
+        """
+        self._send_command({
+            "action": "configure_price_scale", 
+            "chartId": chart_id,
+            "data": {
+                "scaleMargins": {"top": top, "bottom": bottom}
+            }
+        })
 
     def set_sync(self, enabled: bool = False) -> None:
         self._send_command({"action": "set_sync", "data": {"enabled": enabled}})

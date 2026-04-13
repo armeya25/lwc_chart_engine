@@ -32,7 +32,10 @@ pub fn calculate_batch(config: &IndicatorConfig, df_lazy: LazyFrame) -> Result<S
         IndicatorType::Adl => {
             let res_df = df_lazy
                 .with_column(
-                    (((col("close") - col("low")) - (col("high") - col("close"))) / (col("high") - col("low")) * col("volume")).alias("mfv")
+                    when(col("high").eq(col("low")))
+                    .then(lit(0.0))
+                    .otherwise(((col("close") - col("low")) - (col("high") - col("close"))) / (col("high") - col("low")) * col("volume"))
+                    .alias("mfv")
                 )
                 .with_column(col("mfv").cum_sum(false).alias("value"))
                 .collect().map_err(|e: PolarsError| e.to_string())?;

@@ -343,6 +343,13 @@ export function initCharts() {
                     crosshair: { mode: 0, horzLine: { visible: true, labelVisible: true } },
                     width: cell.clientWidth || 400,
                     height: cell.clientHeight || 300,
+                    rightPriceScale: {
+                        autoScale: true,
+                        scaleMargins: {
+                            top: 0.05,
+                            bottom: 0.05,
+                        },
+                    },
                     localization: { 
                         timeFormatter: (ts) => typeof ts === 'number' ? 
                             new Date(ts * 1000).toLocaleString('en-GB', { timeZone: window.chartTimeZone, day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).replace(',', '') : ts 

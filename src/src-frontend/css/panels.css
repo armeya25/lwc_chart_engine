@@ -3,8 +3,9 @@
 /* --- Trade Execution Panel --- */
 #trade-panel {
     position: fixed;
-    top: 70px;
-    left: 20px;
+    top: 36px;
+    left: 50%;
+    transform: translateX(-50%);
     z-index: 1000;
     background: var(--bg-glass);
     backdrop-filter: blur(16px);

@@ -93,8 +93,12 @@ Sets the timeframe indicator in the UI.
 #### `update_trend_info(title: str = None, value: str = None, change: str = None, color: str = None)`
 Updates the trend information overlay. Accepts arbitrary keys.
 
-#### `take_screenshot(chart_id: str = "chart-0")`
-Triggers a screenshot of the specified chart.
+#### `take_screenshot(filename: str = None, chart_id: str = "chart-0")`
+Triggers a screenshot of the specified chart. If `filename` is provided, the image is saved to the project root.
+
+#### `set_price_margins(top: float = 0.05, bottom: float = 0.05, chart_id: str = "chart-0")`
+Adjusts the vertical padding between the data (candles/lines) and the chart boundaries.
+- `top`/`bottom`: Margin as a percentage of chart height (e.g. `0.05` for 5%).
 
 #### `show(block: bool = True)`
 Starts the UI event loop. If `block=True`, the Python script will wait until the window is closed.
@@ -106,7 +110,7 @@ Terminates the backend process and closes the chart window.
 Removes a specific series from a chart pane.
 
 #### `remove_indicator(indicator_id: str)`
-Programmatically removes an indicator group and all its associated sub-series (signal lines, histograms, etc.) from the chart state.
+Programmatically removes an indicator group (e.g., "macd") and all its associated sub-series (signal lines, histograms, etc.) from the chart state.
 
 #### `clear_all_series(chart_id: str = "chart-0")`
 Removes all series from a specific chart pane.
@@ -125,10 +129,11 @@ Creates a new candlestick series on the specified chart pane.
 ## Paper Trading Methods
 These methods are built-in to the `Chart` class and allow for real-time simulated trading.
 
-#### `trader_execute(side: str, qty: float, price: float = None, tp: float = None, sl: float = None, series: Series = None)`
+#### `trader_execute(side: str, qty: float, price: float = None, tp: float = None, sl: float = None, series: Series = None, time: Any = None)`
 Programmatically executes a trade.
 - `side`: `"buy"` or `"sell"`.
 - `series`: If provided, also places a visual marker on the chart at the trade price.
+- `time`: Optional timestamp. If `None`, uses current local time or last data time.
 
 #### `trader_update_price(price: float)`
 Updates the last known market price. Automatically calculates P&L for all open positions and checks if any Take Profit (TP) or Stop Loss (SL) levels have been hit.
@@ -138,6 +143,9 @@ Synchronizes the current internal list of positions with the UI's position table
 
 #### `trader_handle_callback(data: dict)`
 Internal callback for trade events triggered from the UI.
+
+#### `trader_close_position(side: str, qty: float, entry: float)`
+Manually closes a position in the simulated engine.
 
 ---
 
@@ -191,24 +199,65 @@ Supports Lightweight Charts (LWC) series options.
 #### `set_auto_volume(enabled: bool)`
 Enable or disable the automatic creation of a volume histogram pane for this series.
 
-### Indicator Methods (v0.9.0)
-All indicators are high-performance and calculated in the Rust backend. Transitioning to `0.9.0` standardized the default `period` to **14**.
+### Indicator Methods (v0.9.7)
+All indicators are high-performance and calculated in the Rust backend using Polars. Indicators are logically grouped into categories.
 
+#### Trend & Overlays
 #### `add_sma(period: int = 14, color: str = "#2962FF") -> 'Series'`
+Simple Moving Average.
 #### `add_ema(period: int = 14, color: str = "#FF9800") -> 'Series'`
-#### `add_rsi(period: int = 14, color: str = "#9C27B0") -> 'Series'`
-#### `add_macd(fast: int = 12, slow: int = 26, signal: int = 9) -> 'Series'`
-#### `add_bollinger_bands(period: int = 14, std_dev: float = 2.0, color: str = None) -> 'Series'`
-#### `add_atr(period: int = 14, color: str = "#FF5252") -> 'Series'`
+Exponential Moving Average.
+#### `add_wma(period: int = 14, color: str = "#2196F3") -> 'Series'`
+Weighted Moving Average.
+#### `add_hma(period: int = 14, color: str = "#4CAF50") -> 'Series'`
+Hull Moving Average.
+#### `add_dema(period: int = 14, color: str = "#FF5252") -> 'Series'`
+Double Exponential Moving Average.
+#### `add_tema(period: int = 14, color: str = "#00BCD4") -> 'Series'`
+Triple Exponential Moving Average.
 
-#### `add_indicator_v2(ind_type: str, params: Dict[str, Any] = None, metadata: Dict[str, Any] = None) -> 'Series'`
-Unified optimized call to add an indicator with minimal context switching. Returns the primary series.
+#### Oscillators (Dedicated Sub-Panes)
+#### `add_rsi(period: int = 14, color: str = "#9C27B0") -> 'Series'`
+Relative Strength Index.
+#### `add_macd(fast: int = 12, slow: int = 26, signal: int = 9) -> 'Series'`
+Moving Average Convergence Divergence.
+#### `add_stochastic(period: int = 14, smooth_k: int = 3, smooth_d: int = 3) -> 'Series'`
+Stochastic Oscillator.
+#### `add_cci(period: int = 14, color: str = None) -> 'Series'`
+Commodity Channel Index.
+#### `add_mfi(period: int = 14, color: str = "#FFC107") -> 'Series'`
+Money Flow Index.
+#### `add_roc(period: int = 14, color: str = "#FF1744") -> 'Series'`
+Rate of Change.
+#### `add_williams_r(period: int = 14, color: str = None) -> 'Series'`
+Williams %R.
+
+#### Volatility
+#### `add_bollinger_bands(period: int = 14, std_dev: float = 2.0, color: str = None) -> 'Series'`
+Bollinger Bands (Upper, Middle, Lower).
+#### `add_atr(period: int = 14, color: str = "#FF5252") -> 'Series'`
+Average True Range.
+#### `add_keltner_channels(period: int = 20, multiplier: float = 2.0) -> 'Series'`
+Keltner Channels.
+#### `add_donchian_channels(period: int = 20) -> 'Series'`
+Donchian Channels.
+
+#### Volume
+#### `add_vwap(color: str = None) -> 'Series'`
+Volume-Weighted Average Price.
+#### `add_obv(color: str = None) -> 'Series'`
+On-Balance Volume.
+#### `add_adl(color: str = None) -> 'Series'`
+Accumulation/Distribution Line.
+
+#### `add_segmented_line(df: pl.DataFrame, width: int = 2)`
+Converts the series data into a Segmented Line, allowing for dynamic multi-color support within a single line. Requires a DataFrame with `time`, `value`, and `color` columns.
 
 #### `add_band(df: pl.DataFrame, color: str = "rgba(31, 150, 243, 0.2)")`
 Adds a technical Band (Cloud) between two series. Requires a DataFrame with `time`, `top`, and `bottom` columns.
 
-#### `add_segmented_line(df: pl.DataFrame, width: int = 2)`
-Converts the series data into a Segmented Line, allowing for dynamic multi-color support within a single line. Requires a DataFrame with `time`, `value`, and `color` columns.
+#### `add_indicator_v2(ind_type: str, params: Dict[str, Any] = None, metadata: Dict[str, Any] = None) -> 'Series'`
+Unified optimized call to add an indicator with minimal context switching. Returns the primary series.
 
 ### `add_marker(time: Any, position: str = "aboveBar", color: str = "#2196F3", shape: str = "arrowDown", text: str = "")`
 Convenience method for adding a marker to this specific series.

@@ -136,7 +136,7 @@ function ensurePaneLayout(chart, targetPaneId = null) {
     const priceHeight = 1.0 - totalIndicatorHeight;
 
     chart.priceScale('right').applyOptions({
-        scaleMargins: { top: 0.1, bottom: totalIndicatorHeight + 0.05 }
+        scaleMargins: { top: 0.05, bottom: totalIndicatorHeight + 0.02 }
     });
 
     const paneList = Array.from(visiblePanes).sort();
@@ -520,7 +520,7 @@ export const CommandHandlers = {
     configure_price_scale: (targetChart, cmd) => {
         if (!targetChart) return;
         const d = cmd.data, scaleId = d.scaleId || 'right';
-        targetChart.priceScale(scaleId).applyOptions({ visible: true, mode: d.mode !== undefined ? d.mode : 0, autoScale: d.autoScale !== undefined ? d.autoScale : true, invertScale: d.invertScale || false, scaleMargins: d.scaleMargins || { top: 0.1, bottom: 0.1 } });
+        targetChart.priceScale(scaleId).applyOptions({ visible: true, mode: d.mode !== undefined ? d.mode : 0, autoScale: d.autoScale !== undefined ? d.autoScale : true, invertScale: d.invertScale || false, scaleMargins: d.scaleMargins || { top: 0.05, bottom: 0.05 } });
     },
     set_sync: (_targetChart, cmd) => {
         SyncManager.enabled = !!cmd.data.enabled;

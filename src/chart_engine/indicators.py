@@ -1,5 +1,3 @@
-import json
-
 def _get_schemas():
     from .chart import _get_indicator_schemas
     return _get_indicator_schemas()
@@ -64,5 +62,39 @@ class IndicatorMixin:
     def add_williams_r(self, period: int = 14, color: str = None):
         """Williams %R oscillator (-100 to 0) in a dedicated sub-pane."""
         return self.add_indicator_v2("williamsr", {"period": period, "color": color}, _get_schemas().get("williamsr", {}))
+
+    def add_wma(self, period: int = 14, color: str = None):
+        """Weighted Moving Average overlay."""
+        return self.add_indicator_v2("wma", {"period": period, "color": color}, _get_schemas().get("wma", {}))
+
+    def add_hma(self, period: int = 14, color: str = None):
+        """Hull Moving Average overlay."""
+        return self.add_indicator_v2("hma", {"period": period, "color": color}, _get_schemas().get("hma", {}))
+
+    def add_keltner_channels(self, period: int = 20, multiplier: float = 2.0, color: str = None):
+        """Keltner Channels (upper / mid / lower) overlay."""
+        params = {"period": period, "multiplier": multiplier}
+        if color: params["color"] = color
+        return self.add_indicator_v2("keltnerchannels", params, _get_schemas().get("keltnerchannels", {}))
+
+    def add_donchian_channels(self, period: int = 20, color: str = None):
+        """Donchian Channels (upper / mid / lower) overlay."""
+        return self.add_indicator_v2("donchianchannels", {"period": period, "color": color}, _get_schemas().get("donchianchannels", {}))
+
+    def add_mfi(self, period: int = 14, color: str = None):
+        """Money Flow Index oscillator (0-100) in a dedicated sub-pane."""
+        return self.add_indicator_v2("mfi", {"period": period, "color": color}, _get_schemas().get("mfi", {}))
+
+    def add_roc(self, period: int = 14, color: str = None):
+        """Rate of Change oscillator in a dedicated sub-pane."""
+        return self.add_indicator_v2("roc", {"period": period, "color": color}, _get_schemas().get("roc", {}))
+
+    def add_obv(self, color: str = None):
+        """On-Balance Volume (cumulative) in a dedicated sub-pane."""
+        return self.add_indicator_v2("obv", {"color": color}, _get_schemas().get("obv", {}))
+
+    def add_adl(self, color: str = None):
+        """Accumulation/Distribution Line (cumulative) in a dedicated sub-pane."""
+        return self.add_indicator_v2("adl", {"color": color}, _get_schemas().get("adl", {}))
 
 

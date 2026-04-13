@@ -4,7 +4,7 @@ use serde_json::{json, Value};
 use pyo3::prelude::*;
 use crate::drawings::DrawingTool;
 use crate::trader::{PaperTrader, Position};
-use crate::types::{ChartCommand, IndicatorConfig, IndicatorType, Point};
+use crate::types::{ChartCommand, IndicatorConfig, Point, IndicatorType};
 use crate::indicators;
 use uuid::Uuid;
 #[cfg(feature = "python-bridge")]
@@ -26,7 +26,6 @@ pub struct Series {
     pub auto_volume_enabled: bool,
 }
 
-// Moved methods to consolidated #[pymethods] block below
 
 impl Series {
     pub fn new(series_id: String, name: String, chart_id: String) -> Self {
@@ -56,41 +55,14 @@ impl Series {
 
         self.data_df = Some(df.clone());
         
-        let times = df.column("time").unwrap().i64().unwrap();
-        let mut points = Vec::with_capacity(df.height());
-        for i in 0..df.height() {
-            let get_f64 = |name: &str, row: usize| -> f64 {
-                let s = df.column(name).unwrap();
-                if s.dtype() == &DataType::Float64 {
-                    s.f64().unwrap().get(row).unwrap()
-                } else {
-                    s.cast(&DataType::Float64).unwrap().f64().unwrap().get(row).unwrap()
-                }
-            };
-
-            points.push(Point {
-                time: times.get(i).unwrap(),
-                open: get_f64("open", i),
-                high: get_f64("high", i),
-                low: get_f64("low", i),
-                close: get_f64("close", i),
-                volume: df.column("volume").ok().and_then(|s| {
-                    if s.dtype() == &DataType::Float64 {
-                        s.f64().unwrap().get(i)
-                    } else {
-                        s.cast(&DataType::Float64).unwrap().f64().unwrap().get(i)
-                    }
-                }),
-            });
-        }
-        self.data = points.clone();
+        self.data = df_to_points(&df);
         self.indicator_states.clear();
         
         let mut commands = Vec::new();
         
         let mut main_cmd = ChartCommand::new("set_series_data", &self.chart_id);
         main_cmd.series_id = Some(self.series_id.clone());
-        main_cmd.data = Some(serde_json::to_value(&points).unwrap());
+        main_cmd.data = Some(serde_json::to_value(&self.data).unwrap());
         commands.push(serde_json::to_string(&main_cmd).unwrap());
         
         for indicator in &self.indicators {
@@ -103,10 +75,11 @@ impl Series {
 
         // 3. Handle Auto-Volume
         if self.auto_volume_enabled {
-            if let (Ok(vol_col), Ok(open_col), Ok(close_col)) = (df.column("volume"), df.column("open"), df.column("close")) {
+            if let (Ok(vol_col), Ok(open_col), Ok(close_col), Ok(time_col)) = (df.column("volume"), df.column("open"), df.column("close"), df.column("time")) {
                 let vol_values = vol_col.f64().unwrap();
                 let open_values = open_col.f64().unwrap();
                 let close_values = close_col.f64().unwrap();
+                let times = time_col.i64().unwrap();
                 
                 let mut vol_data = Vec::with_capacity(df.height());
                 for i in 0..df.height() {
@@ -135,23 +108,13 @@ impl Series {
         // Process data (to handle aliases like 'date' in update items)
         let df = time_utils::process_polars_data(df).map_err(|e| e.to_string())?;
 
-        let get_f64_opt = |name: &str, row: usize| -> Option<f64> {
-            df.column(name).ok().and_then(|s| {
-                if s.dtype() == &DataType::Float64 {
-                    s.f64().ok().and_then(|ca| ca.get(row))
-                } else {
-                    s.cast(&DataType::Float64).ok().and_then(|sc| sc.f64().ok().and_then(|ca| ca.get(row)))
-                }
-            })
-        };
-
         let point = Point {
             time: df.column("time").unwrap().i64().map_err(|e| e.to_string())?.get(0).unwrap(),
-            open: get_f64_opt("open", 0).unwrap_or(0.0),
-            high: get_f64_opt("high", 0).unwrap_or(0.0),
-            low: get_f64_opt("low", 0).unwrap_or(0.0),
-            close: get_f64_opt("close", 0).unwrap_or(0.0),
-            volume: get_f64_opt("volume", 0),
+            open: get_df_f64(&df, "open", 0).unwrap_or(0.0),
+            high: get_df_f64(&df, "high", 0).unwrap_or(0.0),
+            low: get_df_f64(&df, "low", 0).unwrap_or(0.0),
+            close: get_df_f64(&df, "close", 0).unwrap_or(0.0),
+            volume: get_df_f64(&df, "volume", 0),
         };
 
         if let Some(last) = self.data.last_mut() {
@@ -254,43 +217,6 @@ impl Series {
         self.apply_options(options_json).map_err(|e| pyo3::exceptions::PyValueError::new_err(e))
     }
 
-    #[pyo3(name = "add_indicator")]
-    pub fn py_add_indicator(&mut self, id: String, ind_type: String, params_json: String, extra_ids_json: Option<String>) -> PyResult<()> {
-        let ind_enum = match ind_type.to_lowercase().as_str() {
-            "sma" => IndicatorType::Sma,
-            "ema" => IndicatorType::Ema,
-            "rsi" => IndicatorType::Rsi,
-            "macd" => IndicatorType::Macd,
-            "bbands" | "bollinger" => IndicatorType::BollingerBands,
-            "wma" => IndicatorType::Wma,
-            "hma" => IndicatorType::Hma,
-            "mfi" => IndicatorType::Mfi,
-            "roc" => IndicatorType::Roc,
-            "keltnerchannels" | "keltner" => IndicatorType::KeltnerChannels,
-            "donchianchannels" | "donchian" => IndicatorType::DonchianChannels,
-            "obv" => IndicatorType::Obv,
-            "adl" => IndicatorType::Adl,
-            _ => return Err(pyo3::exceptions::PyValueError::new_err("Unknown indicator type")),
-        };
-        let params: std::collections::HashMap<String, Value> = serde_json::from_str(&params_json)
-            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
-        
-        let mut extra_target_ids = std::collections::HashMap::new();
-        if let Some(json) = extra_ids_json {
-            extra_target_ids = serde_json::from_str(&json)
-                .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
-        }
-
-        self.indicators.push(IndicatorConfig {
-            indicator_type: ind_enum,
-            target_series_id: id,
-            chart_id: self.chart_id.clone(),
-            extra_target_ids,
-            params,
-        });
-        Ok(())
-    }
-
     #[pyo3(name = "set_auto_volume")]
     pub fn py_set_auto_volume(&mut self, enabled: bool) {
         self.auto_volume_enabled = enabled;
@@ -333,40 +259,129 @@ impl Chart {
         Ok(serde_json::to_string(&cmd).unwrap())
     }
 
-    pub fn create_line_series(&mut self, name: String, chart_id: String) -> Result<(String, String), String> {
-        let sid = format!("line_{}", Uuid::new_v4().to_string().split_at(8).0);
+    fn _create_series(&mut self, action: &str, prefix: &str, name: String, chart_id: String) -> Result<(String, String), String> {
+        let sid = format!("{}_{}", prefix, Uuid::new_v4().to_string().split_at(8).0);
         self.series.insert(sid.clone(), Series::new(sid.clone(), name.clone(), chart_id.clone()));
-        let mut cmd = ChartCommand::new("create_line_series", &chart_id);
+        let mut cmd = ChartCommand::new(action, &chart_id);
         cmd.series_id = Some(sid.clone());
         cmd.name = Some(name.clone());
         cmd.options = Some(json!({"name": name}));
         Ok((sid, serde_json::to_string(&cmd).unwrap()))
+    }
+
+    pub fn create_line_series(&mut self, name: String, chart_id: String) -> Result<(String, String), String> {
+        self._create_series("create_line_series", "line", name, chart_id)
     }
 
     pub fn create_candlestick_series(&mut self, name: String, chart_id: String) -> Result<(String, String), String> {
-        let sid = format!("candle_{}", Uuid::new_v4().to_string().split_at(8).0);
-        self.series.insert(sid.clone(), Series::new(sid.clone(), name.clone(), chart_id.clone()));
-        let mut cmd = ChartCommand::new("create_candlestick_series", &chart_id);
-        cmd.series_id = Some(sid.clone());
-        cmd.name = Some(name.clone());
-        cmd.options = Some(json!({"name": name}));
-        Ok((sid, serde_json::to_string(&cmd).unwrap()))
+        self._create_series("create_candlestick_series", "candle", name, chart_id)
     }
 
     pub fn create_histogram_series(&mut self, name: String, chart_id: String) -> Result<(String, String), String> {
-        let sid = format!("hist_{}", Uuid::new_v4().to_string().split_at(8).0);
-        self.series.insert(sid.clone(), Series::new(sid.clone(), name.clone(), chart_id.clone()));
-        let mut cmd = ChartCommand::new("create_histogram_series", &chart_id);
-        cmd.series_id = Some(sid.clone());
-        cmd.name = Some(name.clone());
-        cmd.options = Some(json!({"name": name}));
-        Ok((sid, serde_json::to_string(&cmd).unwrap()))
+        self._create_series("create_histogram_series", "hist", name, chart_id)
     }
     pub fn set_tooltip(&mut self, enabled: bool) -> Result<String, String> {
         self.tooltip_enabled = enabled;
         let mut cmd = ChartCommand::new("set_tooltip", "chart-0");
         cmd.data = Some(json!({"enabled": enabled}));
         Ok(serde_json::to_string(&cmd).unwrap())
+    }
+
+    fn _parse_indicator_type(ind_type_str: &str) -> Result<IndicatorType, String> {
+        match ind_type_str.to_lowercase().as_str() {
+            "sma" => Ok(IndicatorType::Sma),
+            "ema" => Ok(IndicatorType::Ema),
+            "rsi" => Ok(IndicatorType::Rsi),
+            "macd" => Ok(IndicatorType::Macd),
+            "bollingerbands" | "bbands" | "bollinger" => Ok(IndicatorType::BollingerBands),
+            "atr" => Ok(IndicatorType::Atr),
+            "stochastic" | "stoch" => Ok(IndicatorType::Stochastic),
+            "cci" => Ok(IndicatorType::Cci),
+            "vwap" => Ok(IndicatorType::Vwap),
+            "williamsr" | "williams" => Ok(IndicatorType::WilliamsR),
+            "dema" => Ok(IndicatorType::Dema),
+            "tema" => Ok(IndicatorType::Tema),
+            "wma" => Ok(IndicatorType::Wma),
+            "hma" => Ok(IndicatorType::Hma),
+            "mfi" => Ok(IndicatorType::Mfi),
+            "roc" => Ok(IndicatorType::Roc),
+            "keltnerchannels" | "keltner" => Ok(IndicatorType::KeltnerChannels),
+            "donchianchannels" | "donchian" => Ok(IndicatorType::DonchianChannels),
+            "obv" => Ok(IndicatorType::Obv),
+            "adl" => Ok(IndicatorType::Adl),
+            _ => Err(format!("Unknown indicator type: {}", ind_type_str)),
+        }
+    }
+
+    fn _generate_display_name(ind_type_str: &str) -> String {
+        let clean_type = ind_type_str.replace('"', "").to_lowercase();
+        match clean_type.as_str() {
+            "sma" => "SMA".to_string(),
+            "ema" => "EMA".to_string(),
+            "rsi" => "RSI".to_string(),
+            "macd" => "MACD".to_string(),
+            "bbands" | "bollinger" | "bollingerbands" => "Bollinger Bands".to_string(),
+            "atr" => "ATR".to_string(),
+            "stoch" | "stochastic" => "Stochastic".to_string(),
+            "cci" => "CCI".to_string(),
+            "vwap" => "VWAP".to_string(),
+            "williamsr" | "williams" => "Williams %R".to_string(),
+            "dema" => "Double EMA".to_string(),
+            "tema" => "Triple EMA".to_string(),
+            "wma" => "WMA".to_string(),
+            "hma" => "HMA".to_string(),
+            "obv" => "OBV".to_string(),
+            "adl" => "ADL".to_string(),
+            "keltnerchannels" | "keltner" => "Keltner Channels".to_string(),
+            "donchianchannels" | "donchian" => "Donchian Channels".to_string(),
+            "mfi" => "MFI".to_string(),
+            "roc" => "ROC".to_string(),
+            _ => clean_type.to_uppercase(),
+        }
+    }
+
+    fn _generate_group_name(ind_type_str: &str, params: &HashMap<String, Value>) -> String {
+        let display_type = Self::_generate_display_name(ind_type_str);
+        if params.is_empty() {
+            display_type
+        } else {
+            let mut keys: Vec<&String> = params.keys()
+                .filter(|k| *k != "color" && *k != "owner_id")
+                .collect();
+            keys.sort();
+            let p_vals: Vec<String> = keys.iter().map(|k| {
+                let v = params.get(*k).unwrap();
+                if v.is_string() { v.as_str().unwrap().to_string() }
+                else { v.to_string() }
+            }).collect();
+            if p_vals.is_empty() {
+                display_type
+            } else {
+                format!("{}({})", display_type, p_vals.join(", "))
+            }
+        }
+    }
+
+    fn _resolve_indicator_color(&self, source_sid: &str, role: &str, default_color: &str, params: &HashMap<String, Value>) -> String {
+        let palette = [
+            "#2196F3", "#FF9800", "#E91E63", "#4CAF50", "#9C27B0",
+            "#00BCD4", "#FFC107", "#009688", "#673AB7", "#3F51B5",
+            "#8BC34A", "#FF5722", "#607D8B", "#F44336", "#03A9F4",
+            "#CDDC39", "#795548", "#9E9E9E", "#FF4081", "#00E676",
+            "#651FFF", "#AEEA00", "#FFD600", "#FF6E40", "#18FFFF",
+            "#76FF03", "#D4E157", "#FFA726", "#26C6DA", "#AB47BC",
+            "#FF7043", "#5C6BC0", "#26A69A", "#D4E157", "#FFEE58",
+            "#BDBDBD", "#90A4AE", "#ec407a", "#7e57c2", "#26c6da"
+        ];
+        
+        if let Some(c) = params.get("color").and_then(|v| v.as_str()) {
+            c.to_string()
+        } else if role == "main" {
+            let count = self.series.get(source_sid).map(|s| s.indicators.len()).unwrap_or(0);
+            palette[count % palette.len()].to_string()
+        } else {
+            default_color.to_string()
+        }
     }
 
 
@@ -377,47 +392,9 @@ impl Chart {
         params_json: String,
         chart_id: String,
     ) -> Result<String, String> {
-        use crate::types::IndicatorType;
 
-        // --- 1. Auto-Targeting ---
-        // If the requested source series is missing or empty, find the first series with data
-        let mut best_sid = source_sid.clone();
-        if !self.series.contains_key(&source_sid) || self.series.get(&source_sid).unwrap().data.is_empty() {
-            // Priority: 1. Main series with data, 2. First candlestick series with data, 3. Any series with data
-            let found_sid = self.series.iter()
-                .filter(|(_, s)| !s.data.is_empty())
-                .map(|(id, _)| id.clone())
-                .next();
-            
-            if let Some(fs) = found_sid {
-                best_sid = fs;
-            }
-        }
-        source_sid = best_sid;
-
-        let ind_type = match ind_type_str.to_lowercase().as_str() {
-            "sma" => IndicatorType::Sma,
-            "ema" => IndicatorType::Ema,
-            "rsi" => IndicatorType::Rsi,
-            "macd" => IndicatorType::Macd,
-            "bollingerbands" | "bbands" => IndicatorType::BollingerBands,
-            "atr" => IndicatorType::Atr,
-            "stochastic" => IndicatorType::Stochastic,
-            "cci" => IndicatorType::Cci,
-            "vwap" => IndicatorType::Vwap,
-            "williamsr" => IndicatorType::WilliamsR,
-            "dema" => IndicatorType::Dema,
-            "tema" => IndicatorType::Tema,
-            "wma" => IndicatorType::Wma,
-            "hma" => IndicatorType::Hma,
-            "mfi" => IndicatorType::Mfi,
-            "roc" => IndicatorType::Roc,
-            "keltnerchannels" => IndicatorType::KeltnerChannels,
-            "donchianchannels" => IndicatorType::DonchianChannels,
-            "obv" => IndicatorType::Obv,
-            "adl" => IndicatorType::Adl,
-            _ => return Err(format!("Unknown indicator type: {}", ind_type_str)),
-        };
+        source_sid = self.resolve_source_series(&source_sid);
+        let ind_type = Self::_parse_indicator_type(&ind_type_str)?;
 
         let params: HashMap<String, Value> = serde_json::from_str(&params_json).map_err(|e| e.to_string())?;
 
@@ -436,58 +413,12 @@ impl Chart {
             else { ids.insert(role.to_string(), sid.clone()); }
         }
 
-        // Generate descriptive group name (e.g., SMA(14) or MACD(12, 26, 9))
-        let type_label = ind_type_str.replace('"', "").to_uppercase();
-        let display_type = match ind_type_str.replace('"', "").to_lowercase().as_str() {
-            "sma" => "SMA",
-            "ema" => "EMA",
-            "rsi" => "RSI",
-            "macd" => "MACD",
-            "bbands" | "bollinger" | "bollingerbands" => "Bollinger Bands",
-            "atr" => "ATR",
-            "stoch" | "stochastic" => "Stochastic",
-            "cci" => "CCI",
-            "wma" => "WMA",
-            "hma" => "HMA",
-            "obv" => "OBV",
-            "adl" => "ADL",
-            "keltnerchannels" => "Keltner Channels",
-            "donchianchannels" => "Donchian Channels",
-            "mfi" => "MFI",
-            "roc" => "ROC",
-            _ => &type_label,
-        };
+        let group_name = Self::_generate_group_name(&ind_type_str, &params);
 
-        let group_name = if params.is_empty() {
-            display_type.to_string()
-        } else {
-            // Sort by key to have a deterministic order, filtering out cosmetic/internal params
-            let mut keys: Vec<&String> = params.keys()
-                .filter(|k| *k != "color" && *k != "owner_id")
-                .collect();
-            keys.sort();
-            let p_vals: Vec<String> = keys.iter().map(|k| {
-                let v = params.get(*k).unwrap();
-                if v.is_string() { v.as_str().unwrap().to_string() }
-                else { v.to_string() }
-            }).collect();
-            if p_vals.is_empty() {
-                display_type.to_string()
-            } else {
-                format!("{}({})", display_type, p_vals.join(", "))
-            }
-        };
-
-        // 2. Create commands with grouping
+        // 2. Create series and commands with grouping
         for (role, label, color) in sub_info {
             let sid = if role == "main" { main_id.clone() } else { ids.get(role).unwrap().clone() };
-            
-            // Unified naming: Use role label if provided, else group name
-            let series_label = if label.is_empty() || label == "Value" {
-                group_name.clone()
-            } else {
-                label.to_string()
-            };
+            let series_label = if label.is_empty() || label == "Value" { group_name.clone() } else { label.to_string() };
 
             self.series.insert(sid.clone(), Series::new(sid.clone(), series_label.clone(), chart_id.clone()));
 
@@ -497,41 +428,22 @@ impl Chart {
             cmd.name = Some(series_label.clone());
             
             // Add grouping metadata for the legend
-            cmd.extra.insert("indicator".to_string(), json!(main_id));
-            cmd.extra.insert("indicatorTypeName".to_string(), json!(group_name));
-            cmd.extra.insert("humanName".to_string(), json!(series_label));
+            cmd.extra.extend([
+                ("indicator".to_string(), json!(main_id)),
+                ("indicatorTypeName".to_string(), json!(group_name)),
+                ("humanName".to_string(), json!(series_label)),
+            ]);
             
             if role == "main" {
-                cmd.extra.insert("indicatorParams".to_string(), json!(params));
-                cmd.extra.insert("indicatorMetadata".to_string(), indicators::get_indicator_params_schema(ind_type));
-                cmd.extra.insert("ind_type".to_string(), json!(ind_type_str));
-                cmd.extra.insert("owner_id".to_string(), json!(source_sid));
+                cmd.extra.extend([
+                    ("indicatorParams".to_string(), json!(params)),
+                    ("indicatorMetadata".to_string(), indicators::get_indicator_params_schema(ind_type)),
+                    ("ind_type".to_string(), json!(ind_type_str)),
+                    ("owner_id".to_string(), json!(source_sid)),
+                ]);
             }
 
-            // 3. Resolve Color with Rotation
-            let palette = [
-                "#2196F3", "#FF9800", "#E91E63", "#4CAF50", "#9C27B0",
-                "#00BCD4", "#FFC107", "#009688", "#673AB7", "#3F51B5",
-                "#8BC34A", "#FF5722", "#607D8B", "#F44336", "#03A9F4",
-                "#CDDC39", "#795548", "#9E9E9E", "#FF4081", "#00E676",
-                "#651FFF", "#AEEA00", "#FFD600", "#FF6E40", "#18FFFF",
-                "#76FF03", "#D4E157", "#FFA726", "#26C6DA", "#AB47BC",
-                "#FF7043", "#5C6BC0", "#26A69A", "#D4E157", "#FFEE58",
-                "#BDBDBD", "#90A4AE", "#ec407a", "#7e57c2", "#26c6da"
-            ];
-            
-            let final_color = if let Some(c) = params.get("color").and_then(|v| v.as_str()) {
-                c.to_string()
-            } else if role == "main" {
-                // Count all existing indicators on this source to rotate colors across different types
-                let count = if let Some(source) = self.series.get(&source_sid) {
-                    source.indicators.len()
-                } else { 0 };
-                palette[count % palette.len()].to_string()
-            } else {
-                color.to_string()
-            };
-
+            let final_color = self._resolve_indicator_color(&source_sid, role, color, &params);
             let mut options = json!({
                 "color": final_color,
                 "lineWidth": if ind_type_str == "sma" || ind_type_str == "ema" { 2 } else { 1 },
@@ -623,6 +535,18 @@ impl Chart {
             self.series.remove(id);
         }
         all_removed
+    }
+
+    fn resolve_source_series(&self, source_sid: &str) -> String {
+        if self.series.contains_key(source_sid) && !self.series.get(source_sid).unwrap().data.is_empty() {
+             return source_sid.to_string();
+        }
+        let found_sid = self.series.iter()
+            .filter(|(_, s)| !s.data.is_empty())
+            .map(|(id, _)| id.clone())
+            .next();
+            
+        found_sid.unwrap_or_else(|| source_sid.to_string())
     }
 
     pub fn trader_update_price(&mut self, price: f64) -> Vec<String> {
@@ -823,4 +747,30 @@ fn points_to_df(points: &[Point]) -> PolarsResult<DataFrame> {
     ])?;
     
     Ok(df)
+}
+
+fn df_to_points(df: &DataFrame) -> Vec<Point> {
+    let times = df.column("time").unwrap().i64().unwrap();
+    let mut points = Vec::with_capacity(df.height());
+    for i in 0..df.height() {
+        points.push(Point {
+            time: times.get(i).unwrap(),
+            open: get_df_f64(df, "open", i).unwrap_or(0.0),
+            high: get_df_f64(df, "high", i).unwrap_or(0.0),
+            low: get_df_f64(df, "low", i).unwrap_or(0.0),
+            close: get_df_f64(df, "close", i).unwrap_or(0.0),
+            volume: get_df_f64(df, "volume", i),
+        });
+    }
+    points
+}
+
+fn get_df_f64(df: &DataFrame, name: &str, row: usize) -> Option<f64> {
+    df.column(name).ok().and_then(|s| {
+        if s.dtype() == &DataType::Float64 {
+            s.f64().ok().and_then(|ca| ca.get(row))
+        } else {
+            s.cast(&DataType::Float64).ok().and_then(|sc| sc.f64().ok().and_then(|ca| ca.get(row)))
+        }
+    })
 }

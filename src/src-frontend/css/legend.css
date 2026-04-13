@@ -97,6 +97,14 @@
     padding: 0;
     background: transparent !important;
     border: none !important;
+    
+    /* Hide scrollbars but keep functionality */
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+}
+
+.legend-content::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
 }
 
 .legend-content .legend-item, 
