@@ -199,7 +199,7 @@ Supports Lightweight Charts (LWC) series options.
 #### `set_auto_volume(enabled: bool)`
 Enable or disable the automatic creation of a volume histogram pane for this series.
 
-### Indicator Methods (v0.9.7)
+### Indicator Methods (v0.9.8)
 All indicators are high-performance and calculated in the Rust backend using Polars. Indicators are logically grouped into categories.
 
 #### Trend & Overlays

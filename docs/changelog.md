@@ -1,4 +1,20 @@
 
+## [0.9.8] - 2026-04-13
+
+### 🚀 Core Improvements / Features
+- **Summary**: Precision Chart Framing.
+- **Details**: Implemented dynamic price scale margin control via the Python API (`set_price_margins`), allowing users to eliminate large visual gaps or increase padding for professional layouts.
+
+### 🛠 Build & Workflow Optimizations
+- **Summary**: Mixed Project Packaging Fix.
+- **Details**: Resolved a critical build flaw where Maturin would default to a pure-Rust wheel structure. Synchronized the build pipeline to correctly discover and bundle the `chart_engine` Python package alongside the native Rust components.
+- **Summary**: CI/CD Verification Layer.
+- **Details**: Integrated an automated audit step into GitHub Actions to verify wheel structure (presence of Python source and Rust extension) before publication.
+
+### 🎯 UI & API Enhancements
+- **Summary**: Dynamic Margin API.
+- **Details**: Exposed `chart.set_price_margins(top, bottom)` to allow programmatic vertical padding adjustments on the fly.
+
 ## [0.9.7] - 2026-04-13
 
 ### 🚀 Core Improvements / Features

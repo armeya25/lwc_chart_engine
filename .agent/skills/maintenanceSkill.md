@@ -5,12 +5,12 @@ Use this skill to automatically update the `docs/changelog.md` file after signif
 ## 📋 Instructions
 
 1.  **Identify and Synchronize Version**: 
-    - Check the `VERSION` variable in `helpers/upload_to_git.sh`.
-    - **Crucial**: Ensure this version matches exactly in:
-      - `pyproject.toml` (`version = "..."`)
-      - `src/src-tauri/Cargo.toml` (`version = "..."`)
-      - `README.md` (Installation and example snippets)
-    - If code changes are significant, increment the version (e.g., 0.2.7 -> 0.2.8).
+    - **Single Source of Truth**: Always use `pyproject.toml` (`version = "..."`) as the master version.
+    - **Automated Sync**: Run `helpers/upload_to_git.sh` to automatically propagate the version from `pyproject.toml` to:
+      - `src/src-tauri/Cargo.toml`
+      - `helpers/create-wheels.sh`
+      - `.github/workflows/build_wheels.yml` (Manual check recommended)
+    - **Check**: Ensure `README.md` and `docs/api.md` mention the current version (e.g., v0.9.7).
 2.  **Summarize Recent Changes**:
     - Analyze the conversation history and the diffs of modified files.
     - Group changes logically into these categories:

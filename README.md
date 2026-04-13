@@ -14,7 +14,7 @@ A high-performance charting engine built with **Rust**, **Tauri**, and **Lightwe
 - **Interactive Tools**: Built-in support for Trendlines, Fibonacci, Boxes, and Position management.
 - **Python Integration**: First-class support for **Polars DataFrames** and zero-copy Arrow memory mapping.
 
-## 📈 Technical Indicators (v0.9.7)
+## 📈 Technical Indicators (v0.9.8)
 
 LWC Chart Engine comes with a curated suite of 20 high-performance indicators, all calculated on the Rust side to keep your Python main thread responsive.
 
@@ -49,7 +49,7 @@ LWC Chart Engine comes with a curated suite of 20 high-performance indicators, a
 ### 📦 Installation
 If you have a pre-built wheel (check the `wheels/` directory):
 ```bash
-uv pip install wheels/chart_engine-0.9.7-cp38-abi3-manylinux_2_39_x86_64.whl
+uv pip install wheels/chart_engine-0.9.8-cp38-abi3-manylinux_2_39_x86_64.whl
 ```
 
 ### 📊 Examples

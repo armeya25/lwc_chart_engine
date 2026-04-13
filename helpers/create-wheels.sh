@@ -6,7 +6,7 @@ set -e
 # Change to the project root directory
 cd "$(dirname "$0")/.."
 
-VERSION="0.9.7"
+VERSION="0.9.8"
 PACKAGE_NAME="chart_engine"
 SOURCE_DIR="src/chart_engine"
 
@@ -111,10 +111,23 @@ if [ -f "$WHEEL_FILE" ]; then
     echo "📂 Restoring executable permissions before compression..."
     find "$TMP_DIR" -type f -name "*.so" -exec chmod +x {} +
     
+    # Dynamically find the primary package directory (either chart_engine or chart_engine_lib)
+    PKG_DIR=$(find "$TMP_DIR" -maxdepth 1 -type d ! -name ".*" ! -name "*.dist-info" ! -name "*.data" ! -name "$TMP_DIR" | head -n 1)
+    PKG_NAME=$(basename "$PKG_DIR")
+    
+    if [ -z "$PKG_NAME" ]; then
+        echo "⚠️ Warning: Could not detect package directory in wheel. Using fallback: $PACKAGE_NAME"
+        PKG_NAME="$PACKAGE_NAME"
+        mkdir -p "$TMP_DIR/$PKG_NAME"
+    else
+        echo "✅ Detected package directory in wheel: $PKG_NAME"
+    fi
+
     # Ensure binary is in the wheel (Maturin sometimes skips it during compatibility bundling)
     BPATH="src/src-tauri/target/release/chart_engine"
     if [ -f "$BPATH" ]; then
-        echo "📂 Injecting standalone binary into wheel..."
+        echo "📂 Injecting standalone binary into wheel at chart_engine/chart_engine..."
+        mkdir -p "$TMP_DIR/chart_engine"
         cp "$BPATH" "$TMP_DIR/chart_engine/chart_engine"
         chmod +x "$TMP_DIR/chart_engine/chart_engine"
     else

@@ -98,6 +98,14 @@ jobs:
             maturin build --release --features python-bridge --out wheels
           fi
 
+      - name: Verify Wheel Structure
+        shell: bash
+        run: |
+          WHEEL_FILE=$(ls wheels/*.whl | head -n 1)
+          echo "🔍 Auditing $WHEEL_FILE..."
+          python -m zipfile -l "$WHEEL_FILE" | grep "chart_engine/chart.py" || (echo "❌ Error: Python files missing from wheel!" && exit 1)
+          python -m zipfile -l "$WHEEL_FILE" | grep "chart_engine_lib" || (echo "❌ Error: Rust extension missing from wheel!" && exit 1)
+
       - name: Compress Internal Library (UPX)
         shell: bash
         run: |
@@ -107,11 +115,16 @@ jobs:
             mkdir tmp_wheel
             python -m zipfile -e "$WHEEL_FILE" tmp_wheel
             
+            # Dynamically identify the package directory
+            PKG_DIR=$(find tmp_wheel -maxdepth 1 -type d ! -name ".*" ! -name "*.dist-info" ! -name "*.data" ! -name "tmp_wheel" | head -n 1)
+            PKG_NAME=$(basename "$PKG_DIR")
+            echo "✅ Detected package: $PKG_NAME"
+
             # Restoring executable permissions before compression
-            find tmp_wheel -type f \( -name "*.so" -o -name "*.pyd" -o -name "chart_engine" \) -exec chmod +x {} +
+            find tmp_wheel -type f \( -name "*.so" -o -name "*.pyd" -o -name "chart_engine" -o -name "chart_engine.exe" \) -exec chmod +x {} +
             
             # Find and compress only the main binary (skip .so/.pyd for stability and tracebacks)
-            find tmp_wheel -type f -name "chart_engine" -exec upx --best --lzma --force {} + || true
+            find tmp_wheel -type f \( -name "chart_engine" -o -name "chart_engine.exe" \) -exec upx --best --lzma --force {} + || true
             
             # Update RECORD file (Python logic)
             python3 -c "
